@@ -37,7 +37,11 @@ interface Session {
 const MAX_SESSIONS_PER_DAY = 3;
 const EXPIRATION_DAYS = 7;
 
-export default function ChatbotWidget() {
+export default function ChatbotWidget({
+  isPreview = false,
+}: {
+  isPreview?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -52,6 +56,7 @@ export default function ChatbotWidget() {
   // Speech Bubble State
   const [currentMessage, setCurrentMessage] = useState('');
   const [isBubbleVisible, setIsBubbleVisible] = useState(false);
+  const [isSending, setIsSending] = useState(false); // Double submit prevention
 
   const PROMOTIONAL_MESSAGES = [
     '글에 대해 궁금 하신게 있으세요? 🤗',
@@ -68,7 +73,7 @@ export default function ChatbotWidget() {
       // Pick random message
       const randomMsg =
         PROMOTIONAL_MESSAGES[
-          Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
+        Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
         ];
       setCurrentMessage(randomMsg);
       setIsBubbleVisible(true);
@@ -208,11 +213,14 @@ export default function ChatbotWidget() {
   const handleSendMessage = () => {
     const activeSession = sessions.find((s) => s.id === activeSessionId);
     if (
+      isSending ||
       (!inputValue.trim() && attachments.length === 0) ||
       !activeSession ||
       !isSessionWritable(activeSession)
     )
       return;
+
+    setIsSending(true);
 
     const newMessage: Message = {
       text: inputValue,
@@ -261,6 +269,7 @@ export default function ChatbotWidget() {
         return s;
       });
       setSessions(sessionsWithBot);
+      setIsSending(false);
     }, 1000);
   };
 
@@ -306,12 +315,25 @@ export default function ChatbotWidget() {
     ? !isSessionWritable(activeSessionCheck)
     : false;
 
+  // Logic for positioning classes based on isPreview
+  const positionClasses = isPreview
+    ? 'absolute bottom-6 right-6'
+    : 'fixed bottom-12 left-16';
+
+  const bubblePositionClasses = isPreview
+    ? 'absolute bottom-24 right-6'
+    : 'fixed bottom-32 left-16';
+
+  const windowPositionClasses = isPreview
+    ? 'absolute bottom-20 right-6'
+    : 'fixed bottom-28 left-16';
+
   return (
     <>
       {/* Floating Icon */}
       <div
         onClick={handleToggleChat}
-        className={`fixed bottom-12 left-16 w-[51px] h-[51px] rounded-full bg-white shadow-lg cursor-pointer flex items-center justify-center transition-transform hover:scale-110 z-50 border-2 border-white overflow-hidden ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
+        className={`${positionClasses} w-[51px] h-[51px] rounded-full bg-white shadow-lg cursor-pointer flex items-center justify-center transition-transform hover:scale-110 z-50 border-2 border-white overflow-hidden ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
       >
         {/* Icon Image */}
         <img
@@ -324,18 +346,18 @@ export default function ChatbotWidget() {
       {/* Promotional Bubble */}
       {!isOpen && (
         <div
-          className={`fixed bottom-32 left-16 bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-100 transition-all duration-500 z-40 max-w-[200px] text-xs text-gray-600 font-medium pointer-events-none
+          className={`${bubblePositionClasses} bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-100 transition-all duration-500 z-40 max-w-[200px] text-xs text-gray-600 font-medium pointer-events-none origin-bottom-${isPreview ? 'right' : 'left'}
           ${isBubbleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
         >
           {currentMessage}
-          {/* Triange pointer */}
-          <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-white border-b border-r border-gray-100 transform rotate-45"></div>
+          {/* Triangle pointer */}
+          <div className={`absolute -bottom-1.5 ${isPreview ? 'right-6 border-b border-l' : 'left-6 border-b border-r'} w-3 h-3 bg-white border-gray-100 transform rotate-45`}></div>
         </div>
       )}
 
       {/* Chat Window */}
       <div
-        className={`fixed bottom-28 left-16 w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl border flex flex-col transition-all duration-300 transform z-50 overflow-hidden ${isOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
+        className={`${windowPositionClasses} w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl border flex flex-col transition-all duration-300 transform z-50 overflow-hidden ${isOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
       >
         {/* Header */}
         <div className="bg-gray-50 p-4 border-b flex justify-between items-center text-gray-800 font-semibold select-none">
@@ -479,8 +501,8 @@ export default function ChatbotWidget() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleAddAttachment}
-                disabled={isLocked}
-                className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isLocked || isSending}
+                className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLocked || isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Add Page Context"
               >
                 <Plus size={20} />
@@ -494,15 +516,17 @@ export default function ChatbotWidget() {
                     ? '대화가 종료되었습니다 (제한 도달)'
                     : 'Type a message...'
                 }
-                disabled={isLocked}
+                disabled={isLocked || isSending}
                 className="rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1"
               />
               <button
                 onClick={handleSendMessage}
                 disabled={
-                  (!inputValue.trim() && attachments.length === 0) || isLocked
+                  (!inputValue.trim() && attachments.length === 0) ||
+                  isLocked ||
+                  isSending
                 }
-                className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
+                className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked || isSending ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
               >
                 <Send size={20} />
               </button>

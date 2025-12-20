@@ -85,7 +85,7 @@ export default function ChatbotConfigPage() {
           </div>
           {/* The widget will be fixed positioned, but restricted by the iframe conceptually if we were fully isolating it. 
                         For this preview, it just floats on the page. */}
-          <ChatbotWidget />
+          <ChatbotWidget isPreview={true} />
         </div>
       </div>
     </div>

@@ -549,6 +549,7 @@
 
     let activeSessionId = null;
     let attachments = [];
+    let isSending = false; // Prevents double submission
 
     // --- Constants ---
     const MAX_SESSIONS_PER_DAY = 3;
@@ -837,7 +838,7 @@
     // Input Handling
     const updateSendButton = () => {
         const session = getActiveSession();
-        if (session && !isSessionWritable(session)) {
+        if ((session && !isSessionWritable(session)) || isSending) {
             sendBtn.disabled = true;
             sendBtn.style.color = '#ccc';
             return;
@@ -856,7 +857,7 @@
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
-            if (!sendBtn.disabled) sendMessage();
+            if (!sendBtn.disabled && !isSending) sendMessage();
         }
     });
 
@@ -907,12 +908,14 @@
     };
 
     // Send Logic
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', (e) => {
+        if (!isSending) sendMessage();
+    });
 
     function sendMessage() {
         // Double Check Lock
         const session = getActiveSession();
-        if (!session || !isSessionWritable(session)) return;
+        if (isSending || !session || !isSessionWritable(session)) return;
 
         const text = input.value.trim();
         if (!text && attachments.length === 0) return;
@@ -923,6 +926,9 @@
             timestamp: new Date().toISOString(),
             type: 'user'
         };
+
+        isSending = true; // Set block flag
+        updateSendButton();
 
         // 1. Update State
         const sessions = getSessions();
@@ -956,6 +962,9 @@
                 saveSessions(updatedSessions);
                 if (activeSessionId === s.id) renderChat(); // Only render if still active
             }
+
+            isSending = false; // Release block
+            updateSendButton();
         }, 1000);
     }
 
