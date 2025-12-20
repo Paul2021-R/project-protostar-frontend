@@ -17,13 +17,13 @@ interface InviteFormProps {
 export function InviteForm({ defaultRole = 'seeker' }: InviteFormProps) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-6 md:p-12 md:pb-6">
         <CardTitle>Request an Invite Code</CardTitle>
         <CardDescription>
           Protostar is currently in private beta. Join the waitlist.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-6 md:p-12 pt-0 md:pt-0">
         <div className="grid gap-2">
           <label htmlFor="name" className="text-sm font-medium">
             Name

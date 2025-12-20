@@ -1,5 +1,6 @@
 'use client';
 
+import * as React from 'react';
 import {
   Home,
   MessageSquare,
@@ -24,8 +25,10 @@ import {
   SidebarFooter,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import Link from 'next/link';
+import { ModeToggle } from '@/components/mode-toggle';
 
 // Menu items.
 const items = [
@@ -62,12 +65,32 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const { isMobile, setOpen } = useSidebar();
+
+  React.useEffect(() => {
+    if (isMobile) {
+      setOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  };
+
   return (
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="md:h-8 md:p-0">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="md:h-8 md:p-0 hover:bg-transparent active:bg-transparent active:scale-100"
+              onClick={handleLinkClick}
+            >
               <Link href="/">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
@@ -83,7 +106,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <SidebarMenu>
+        <SidebarMenu className="mt-6">
           <SidebarMenuItem>
             <SidebarMenuButton
               className="w-fit"
@@ -95,9 +118,9 @@ export function AppSidebar() {
               }}
               asChild
             >
-              <SidebarTrigger className="h-8 w-full justify-start px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                <PanelLeft className="size-4" />
-                <span>Toggle Sidebar</span>
+              <SidebarTrigger className="h-10 w-full justify-start gap-3 px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <PanelLeft className="size-5" />
+                <span className="text-base lg:text-sm">Fold / Unfold</span>
               </SidebarTrigger>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -107,12 +130,16 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-3">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link href={item.url}>
-                      <item.icon />
+                  <SidebarMenuButton
+                    asChild
+                    className="h-10 text-base font-medium lg:text-sm"
+                    onClick={handleLinkClick}
+                  >
+                    <Link href={item.url} className="gap-3">
+                      <item.icon className="size-5" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -123,18 +150,10 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <Link href="/profile">
-                <User />
-                <span>My Profile</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="p-2 flex justify-center">
+          <ModeToggle />
+        </div>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }

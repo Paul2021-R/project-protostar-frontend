@@ -28,8 +28,8 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-10rem)] items-center justify-center">
-      <Card className="w-[350px]">
+    <div className="flex h-[calc(100vh-10rem)] items-center justify-center px-4">
+      <Card className="w-full max-w-[350px]">
         <CardHeader>
           <CardTitle>Register</CardTitle>
           <CardDescription>Create an account to get started.</CardDescription>
