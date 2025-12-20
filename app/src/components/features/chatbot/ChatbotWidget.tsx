@@ -73,7 +73,7 @@ export default function ChatbotWidget({
       // Pick random message
       const randomMsg =
         PROMOTIONAL_MESSAGES[
-        Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
+          Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
         ];
       setCurrentMessage(randomMsg);
       setIsBubbleVisible(true);
@@ -351,7 +351,9 @@ export default function ChatbotWidget({
         >
           {currentMessage}
           {/* Triangle pointer */}
-          <div className={`absolute -bottom-1.5 ${isPreview ? 'right-6 border-b border-l' : 'left-6 border-b border-r'} w-3 h-3 bg-white border-gray-100 transform rotate-45`}></div>
+          <div
+            className={`absolute -bottom-1.5 ${isPreview ? 'right-6 border-b border-l' : 'left-6 border-b border-r'} w-3 h-3 bg-white border-gray-100 transform rotate-45`}
+          ></div>
         </div>
       )}
 
