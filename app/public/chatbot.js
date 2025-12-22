@@ -417,6 +417,47 @@
         height: 60vh;
       }
     }
+
+    /* Speech Bubble */
+    .protostar-bubble {
+        position: fixed;
+        bottom: 125px;
+        left: 60px;
+        background: white;
+        padding: 10px 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: 1px solid rgba(0,0,0,0.05);
+        font-size: 13px;
+        color: #555;
+        z-index: 999;
+        max-width: 220px;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: all 0.5s ease-in-out;
+        pointer-events: none;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+    }
+
+    .protostar-bubble.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .protostar-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 20px;
+        width: 12px;
+        height: 12px;
+        background: white;
+        border-bottom: 1px solid rgba(0,0,0,0.05);
+        border-right: 1px solid rgba(0,0,0,0.05);
+        transform: rotate(45deg);
+    }
   `;
     document.head.appendChild(style);
 
@@ -428,6 +469,12 @@
     iconContainer.className = 'protostar-icon';
     iconContainer.id = 'protostar-icon';
     iconContainer.innerHTML = `<img src="${baseUrl}/assets/images/project-protostar/protostar_icon.png" alt="Protostar Chat">`;
+
+    // Create Bubble
+    const bubbleContainer = document.createElement('div');
+    bubbleContainer.className = 'protostar-bubble';
+    bubbleContainer.id = 'protostar-bubble';
+    bubbleContainer.innerText = 'Hello!'; // Initial placeholder
 
     const windowContainer = document.createElement('div');
     windowContainer.className = 'protostar-window';
@@ -479,6 +526,7 @@
   `;
 
     document.body.appendChild(iconContainer);
+    document.body.appendChild(bubbleContainer);
     document.body.appendChild(windowContainer);
 
     // 3. Logic & Event Listeners
@@ -501,9 +549,11 @@
 
     let activeSessionId = null;
     let attachments = [];
+    let isSending = false; // Prevents double submission
 
     // --- Constants ---
     const MAX_SESSIONS_PER_DAY = 3;
+    const MAX_MESSAGES_PER_SESSION = 10;
     const EXPIRATION_DAYS = 7;
 
     // --- Helpers ---
@@ -534,6 +584,14 @@
         const diffTime = Math.abs(now - new Date(lastUpdated));
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         return diffDays > EXPIRATION_DAYS;
+    };
+
+    const isSessionWritable = (session) => {
+        if (!session) return false;
+        const today = new Date().toDateString();
+        const isToday = new Date(session.created_at).toDateString() === today;
+        const userMsgCount = session.messages.filter(m => m.type === 'user').length;
+        return isToday && userMsgCount < MAX_MESSAGES_PER_SESSION;
     };
 
     const getTodaySessionCount = (sessions) => {
@@ -635,6 +693,24 @@
         // Update Header
         updateHeaderTitle(session);
 
+        // Check Lock Status
+        const writable = isSessionWritable(session);
+        if (!writable) {
+            input.disabled = true;
+            input.placeholder = "대화가 종료되었습니다 (제한 도달)";
+            sendBtn.disabled = true;
+            addBtn.disabled = true;
+            addBtn.style.opacity = '0.5';
+            addBtn.style.cursor = 'not-allowed';
+        } else {
+            input.disabled = false;
+            input.placeholder = "Type a message...";
+            addBtn.disabled = false;
+            addBtn.style.opacity = '1';
+            addBtn.style.cursor = 'pointer';
+            updateSendButton(); // Re-eval send button
+        }
+
         session.messages.forEach(msg => {
             const bubble = document.createElement('div');
             bubble.className = `message-bubble ${msg.type}`;
@@ -669,7 +745,6 @@
 
             div.innerHTML = `
              <span class="session-date">${dateStr}</span>
-             <span class="session-date">${dateStr}</span>
              <span class="session-title">${escapeHtml(decodeURIComponent(s.url))}</span> 
            `;
 
@@ -694,6 +769,7 @@
     const toggleChat = () => {
         windowContainer.classList.toggle('show');
         if (windowContainer.classList.contains('show')) {
+            bubbleContainer.classList.remove('visible'); // Hide bubble immediately
             setTimeout(() => input.focus(), 300);
 
             // Ensure we have a session (unless limited)
@@ -761,6 +837,13 @@
 
     // Input Handling
     const updateSendButton = () => {
+        const session = getActiveSession();
+        if ((session && !isSessionWritable(session)) || isSending) {
+            sendBtn.disabled = true;
+            sendBtn.style.color = '#ccc';
+            return;
+        }
+
         if (input.value.trim() || attachments.length > 0) {
             sendBtn.disabled = false;
             sendBtn.style.color = '#007bff';
@@ -774,19 +857,28 @@
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
             e.preventDefault();
-            if (!sendBtn.disabled) sendMessage();
+            if (!sendBtn.disabled && !isSending) sendMessage();
         }
     });
 
     // Attachment Logic
     addBtn.addEventListener('click', () => {
+        // 1. Prevent root path
+        if (window.location.pathname === '/' || window.location.pathname === '') {
+            alert('메인 페이지는 첨부할 수 없습니다. 세부 페이지에서 시도해주세요.');
+            return;
+        }
+
         const title = document.title;
         // Check if already added
         if (attachments.some(att => att.title === title)) return;
 
+        // 2. Extract Body Text
+        const content = document.body.innerText;
+
         const attachment = {
             title: title,
-            content: document.body.innerText.substring(0, 5000), // Limit content size
+            content: content.substring(0, 5000), // Limit content size
             url: window.location.href,
             timestamp: new Date().toISOString()
         };
@@ -816,14 +908,17 @@
     };
 
     // Send Logic
-    sendBtn.addEventListener('click', sendMessage);
+    sendBtn.addEventListener('click', (e) => {
+        if (!isSending) sendMessage();
+    });
 
     function sendMessage() {
+        // Double Check Lock
+        const session = getActiveSession();
+        if (isSending || !session || !isSessionWritable(session)) return;
+
         const text = input.value.trim();
         if (!text && attachments.length === 0) return;
-
-        const session = getActiveSession();
-        if (!session) return;
 
         const userMsg = {
             text: text,
@@ -831,6 +926,9 @@
             timestamp: new Date().toISOString(),
             type: 'user'
         };
+
+        isSending = true; // Set block flag
+        updateSendButton();
 
         // 1. Update State
         const sessions = getSessions();
@@ -864,10 +962,44 @@
                 saveSessions(updatedSessions);
                 if (activeSessionId === s.id) renderChat(); // Only render if still active
             }
+
+            isSending = false; // Release block
+            updateSendButton();
         }, 1000);
     }
 
     // Init
     // Try to load one immediately to handle migration
     getSessions();
+
+    // --- Bubble Logic ---
+    const PROMOTIONAL_MESSAGES = [
+        '글에 대해 궁금 하신게 있으세요? 🤗',
+        '이력과 경력에 대해 궁금한 것은 저에게 물어봐 주세요! 😎',
+        '저는 커리어 관리 Agentic AI 비서 Protostar 입니다. 😄',
+    ];
+
+    const runBubbleLoop = () => {
+        // Stop/Pause if chat is open
+        if (windowContainer.classList.contains('show')) {
+            setTimeout(runBubbleLoop, 3000);
+            return;
+        }
+
+        const randomMsg = PROMOTIONAL_MESSAGES[Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)];
+        bubbleContainer.innerText = randomMsg;
+        bubbleContainer.classList.add('visible');
+
+        // Hide after 4s
+        setTimeout(() => {
+            bubbleContainer.classList.remove('visible');
+            // Show again after random 3-6s
+            const nextDelay = 3000 + Math.random() * 3000;
+            setTimeout(runBubbleLoop, nextDelay);
+        }, 4000);
+    };
+
+    // Start loop after 2s
+    setTimeout(runBubbleLoop, 2000);
+
 })();

@@ -37,7 +37,11 @@ interface Session {
 const MAX_SESSIONS_PER_DAY = 3;
 const EXPIRATION_DAYS = 7;
 
-export default function ChatbotWidget() {
+export default function ChatbotWidget({
+  isPreview = false,
+}: {
+  isPreview?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -49,7 +53,49 @@ export default function ChatbotWidget() {
     { title: string; content: string; url: string; timestamp: string }[]
   >([]);
 
+  // Speech Bubble State
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isBubbleVisible, setIsBubbleVisible] = useState(false);
+  const [isSending, setIsSending] = useState(false); // Double submit prevention
+
+  const PROMOTIONAL_MESSAGES = [
+    '글에 대해 궁금 하신게 있으세요? 🤗',
+    '이력과 경력에 대해 궁금한 것은 저에게 물어봐 주세요! 😎',
+    '저는 커리어 관리 Agentic AI 비서 Protostar 입니다. 😄',
+  ];
+
+  // --- Effects ---
+  useEffect(() => {
+    // Bubble Animation Loop
+    let timeoutId: NodeJS.Timeout;
+
+    const showBubble = () => {
+      // Pick random message
+      const randomMsg =
+        PROMOTIONAL_MESSAGES[
+          Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
+        ];
+      setCurrentMessage(randomMsg);
+      setIsBubbleVisible(true);
+
+      // Hide after 4 seconds
+      timeoutId = setTimeout(() => {
+        setIsBubbleVisible(false);
+        // Show again after 3-6 seconds (random)
+        const nextDelay = 3000 + Math.random() * 3000;
+        timeoutId = setTimeout(showBubble, nextDelay);
+      }, 4000);
+    };
+
+    // Initial start delay
+    timeoutId = setTimeout(showBubble, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const MAX_MESSAGES_PER_SESSION = 10;
 
   // --- Helpers ---
   const generateSessionId = () => {
@@ -59,6 +105,15 @@ export default function ChatbotWidget() {
         ? window.location.pathname.replace(/[^a-zA-Z0-9]/g, '').substring(0, 10)
         : 'path';
     return `sess_${timestamp}_${cleanPath}_${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  const isSessionWritable = (session: Session) => {
+    const today = new Date().toDateString();
+    const isToday = new Date(session.created_at).toDateString() === today;
+    const userMsgCount = session.messages.filter(
+      (m) => m.type === 'user',
+    ).length;
+    return isToday && userMsgCount < MAX_MESSAGES_PER_SESSION;
   };
 
   const isSessionExpired = (lastUpdated: string) => {
@@ -99,9 +154,6 @@ export default function ChatbotWidget() {
       );
       setActiveSessionId(loadedSessions[0].id);
       setMessages(loadedSessions[0].messages);
-    } else {
-      // We defer creation until user interacting or just create one if none exist?
-      // chatbot.js created one if none existed on toggle.
     }
   }, []);
 
@@ -159,8 +211,16 @@ export default function ChatbotWidget() {
   };
 
   const handleSendMessage = () => {
-    if ((!inputValue.trim() && attachments.length === 0) || !activeSessionId)
+    const activeSession = sessions.find((s) => s.id === activeSessionId);
+    if (
+      isSending ||
+      (!inputValue.trim() && attachments.length === 0) ||
+      !activeSession ||
+      !isSessionWritable(activeSession)
+    )
       return;
+
+    setIsSending(true);
 
     const newMessage: Message = {
       text: inputValue,
@@ -209,17 +269,28 @@ export default function ChatbotWidget() {
         return s;
       });
       setSessions(sessionsWithBot);
+      setIsSending(false);
     }, 1000);
   };
 
   const handleAddAttachment = () => {
-    // Mock "Adding current page"
+    // 1. Prevent root path attachment
+    if (window.location.pathname === '/' || window.location.pathname === '') {
+      alert('메인 페이지는 첨부할 수 없습니다. 세부 페이지에서 시도해주세요.');
+      return;
+    }
+
     const title = document.title;
     if (attachments.some((a) => a.title === title)) return;
 
+    // 2. Extract Body Text Only (Simple extraction)
+    // Create a clone to strip tags if needed, or just use innerText
+    // innerText is usually good enough for raw text content visible to user
+    const content = document.body.innerText;
+
     const newAtt = {
       title,
-      content: document.body.innerText.substring(0, 1000), // truncated
+      content: content.substring(0, 5000), // Limit size
       url: window.location.href,
       timestamp: new Date().toISOString(),
     };
@@ -238,22 +309,57 @@ export default function ChatbotWidget() {
     return hasUserMsg ? session?.url : 'Protostar';
   }, [activeSessionId, sessions]);
 
+  // Derived state for locking
+  const activeSessionCheck = sessions.find((s) => s.id === activeSessionId);
+  const isLocked = activeSessionCheck
+    ? !isSessionWritable(activeSessionCheck)
+    : false;
+
+  // Logic for positioning classes based on isPreview
+  const positionClasses = isPreview
+    ? 'absolute bottom-6 right-6'
+    : 'fixed bottom-12 left-16';
+
+  const bubblePositionClasses = isPreview
+    ? 'absolute bottom-24 right-6'
+    : 'fixed bottom-32 left-16';
+
+  const windowPositionClasses = isPreview
+    ? 'absolute bottom-20 right-6'
+    : 'fixed bottom-28 left-16';
+
   return (
     <>
       {/* Floating Icon */}
       <div
         onClick={handleToggleChat}
-        className={`fixed bottom-12 left-16 w-[51px] h-[51px] rounded-full bg-white shadow-lg cursor-pointer flex items-center justify-center transition-transform hover:scale-110 z-50 border-2 border-white overflow-hidden ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
+        className={`${positionClasses} w-[51px] h-[51px] rounded-full bg-white shadow-lg cursor-pointer flex items-center justify-center transition-transform hover:scale-110 z-50 border-2 border-white overflow-hidden ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
       >
-        {/* Placeholder Icon */}
-        <div className="bg-black w-full h-full flex items-center justify-center text-white font-bold text-xl">
-          P
-        </div>
+        {/* Icon Image */}
+        <img
+          src="/assets/images/project-protostar/protostar_icon.png"
+          alt="Protostar Chat"
+          className="w-full h-full object-cover"
+        />
       </div>
+
+      {/* Promotional Bubble */}
+      {!isOpen && (
+        <div
+          className={`${bubblePositionClasses} bg-white px-4 py-2 rounded-xl shadow-lg border border-gray-100 transition-all duration-500 z-40 max-w-[200px] text-xs text-gray-600 font-medium pointer-events-none origin-bottom-${isPreview ? 'right' : 'left'}
+          ${isBubbleVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+        >
+          {currentMessage}
+          {/* Triangle pointer */}
+          <div
+            className={`absolute -bottom-1.5 ${isPreview ? 'right-6 border-b border-l' : 'left-6 border-b border-r'} w-3 h-3 bg-white border-gray-100 transform rotate-45`}
+          ></div>
+        </div>
+      )}
 
       {/* Chat Window */}
       <div
-        className={`fixed bottom-28 left-16 w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl border flex flex-col transition-all duration-300 transform z-50 overflow-hidden ${isOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
+        className={`${windowPositionClasses} w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl border flex flex-col transition-all duration-300 transform z-50 overflow-hidden ${isOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 translate-y-4 invisible'}`}
       >
         {/* Header */}
         <div className="bg-gray-50 p-4 border-b flex justify-between items-center text-gray-800 font-semibold select-none">
@@ -397,7 +503,8 @@ export default function ChatbotWidget() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleAddAttachment}
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors"
+                disabled={isLocked || isSending}
+                className={`p-2 rounded-full hover:bg-gray-100 text-gray-500 transition-colors ${isLocked || isSending ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Add Page Context"
               >
                 <Plus size={20} />
@@ -406,13 +513,22 @@ export default function ChatbotWidget() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type a message..."
+                placeholder={
+                  isLocked
+                    ? '대화가 종료되었습니다 (제한 도달)'
+                    : 'Type a message...'
+                }
+                disabled={isLocked || isSending}
                 className="rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1"
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim() && attachments.length === 0}
-                className={`p-2 transition-colors ${!inputValue.trim() && attachments.length === 0 ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
+                disabled={
+                  (!inputValue.trim() && attachments.length === 0) ||
+                  isLocked ||
+                  isSending
+                }
+                className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked || isSending ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
               >
                 <Send size={20} />
               </button>
