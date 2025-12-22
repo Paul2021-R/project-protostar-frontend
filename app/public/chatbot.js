@@ -599,6 +599,13 @@
         return sessions.filter(s => new Date(s.created_at).toDateString() === today).length;
     };
 
+    // --- State Variables (Added for SSE) ---
+    let serverUUID = localStorage.getItem('protostar_chat_uuid') || null;
+    let eventSource = null;
+    let isWaitingForRetry = false;
+    let retryCountdown = 0;
+
+
     // --- Data Management ---
     const getSessions = () => {
         let sessions = safeJsonParse(localStorage.getItem('protostar_sessions'), []);
@@ -778,6 +785,8 @@
                 if (session) {
                     activeSessionId = session.id;
                     renderChat();
+                    connectSSE(activeSessionId); // Connect SSE on restore
+
                 }
             }
         }
@@ -798,6 +807,8 @@
             input.value = '';
             attachments = [];
             attachmentArea.innerHTML = '';
+            connectSSE(newId); // Connect SSE for new session
+
             updateSendButton();
         }
     });
@@ -907,6 +918,160 @@
         attachmentArea.appendChild(pill);
     };
 
+    // --- SSE Connection Logic ---
+    const connectSSE = (sessionId) => {
+        if (!sessionId) return;
+        if (eventSource) eventSource.close();
+
+        // Use baseUrl from config or default domain
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_URL = isLocal ? 'http://localhost:5859' : 'https://back-protostar.ddns.net';
+
+        const baseUrl = `${API_URL}/api/v1/chat/stream/${sessionId}`;
+        const url = serverUUID ? `${baseUrl}?uuid=${serverUUID}` : baseUrl;
+
+        eventSource = new EventSource(url);
+
+        eventSource.onopen = () => {
+            console.log('Protostar SSE Connected');
+        };
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+
+                // Handle Object Payloads (init, heartbeat) which might come as generic messages
+                if (typeof data === 'object' && data !== null) {
+                    if (data.type === 'init') {
+                        if (data.uuid) {
+                            serverUUID = data.uuid;
+                            localStorage.setItem('protostar_chat_uuid', data.uuid);
+                        }
+                        return;
+                    }
+                    if (data.type === 'heartbeat') {
+                        // Ignore heartbeat
+                        return;
+                    }
+                    // If it is a token object (if backend changes), handle here?
+                    // Currently backend sends raw string for tokens? 
+                    // Wait, worker.py sends: { type: 'message', content: token ... } via Redis.
+                    // ChatService routes it: userStream.next({ type: 'message', content: ... })
+                    // Controller maps it: { data: payload }
+                    // So data IS an object { type: 'message', content: '...' }
+
+                    if (data.type === 'message') {
+                        const content = data.content;
+                        if (typeof content === 'string') {
+                            const sessions = getSessions();
+                            const s = sessions.find(sess => sess.id === sessionId);
+                            if (s) {
+                                const lastMsg = s.messages[s.messages.length - 1];
+                                if (lastMsg && lastMsg.type === 'bot') {
+                                    lastMsg.text += content;
+                                } else {
+                                    s.messages.push({
+                                        text: content, // First chunk
+                                        type: 'bot',
+                                        timestamp: new Date().toISOString()
+                                    });
+                                }
+                                s.last_updated = new Date().toISOString();
+                                saveSessions(sessions);
+                                if (activeSessionId === sessionId) renderChat();
+                            }
+                        } else if (typeof content === 'object' && content !== null && content.type === 'done') {
+                            // Handle wrapped DONE signal
+                            isSending = false;
+                            updateSendButton();
+                        }
+                        return;
+                    }
+
+                    if (data.type === 'done') {
+                        isSending = false;
+                        updateSendButton();
+                        return;
+                    }
+                }
+
+                // Legacy/Fallback for raw string handling if needed
+                if (typeof data === 'string') {
+                    // Start of stream or token
+                    const sessions = getSessions();
+                    const s = sessions.find(sess => sess.id === sessionId);
+                    if (s) {
+                        const lastMsg = s.messages[s.messages.length - 1];
+                        if (lastMsg && lastMsg.type === 'bot') {
+                            lastMsg.text += data;
+                        } else {
+                            // New bot message
+                            s.messages.push({
+                                text: data,
+                                type: 'bot',
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                        s.last_updated = new Date().toISOString();
+                        saveSessions(sessions);
+                        if (activeSessionId === sessionId) renderChat();
+                    }
+                }
+            } catch (e) {
+                // Raw text fallback
+                const sessions = getSessions();
+                const s = sessions.find(sess => sess.id === sessionId);
+                if (s) {
+                    const lastMsg = s.messages[s.messages.length - 1];
+                    if (lastMsg && lastMsg.type === 'bot') {
+                        lastMsg.text += event.data;
+                    } else {
+                        s.messages.push({
+                            text: event.data,
+                            type: 'bot',
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                    s.last_updated = new Date().toISOString();
+                    saveSessions(sessions);
+                    if (activeSessionId === sessionId) renderChat();
+                }
+            }
+        };
+
+
+
+        eventSource.addEventListener('done', () => {
+            isSending = false;
+            updateSendButton();
+        });
+
+        eventSource.onerror = (err) => {
+            // console.error('SSE Error', err);
+        };
+    };
+
+    // Helper to extract clean HTML
+    const getCleanContext = () => {
+        // Try to find specific content container (User requested .post-content)
+        const postContent = document.querySelector('.post-content') || document.querySelector('.e-content');
+        const sourceNode = postContent ? postContent : document.body;
+
+        const clone = sourceNode.cloneNode(true);
+        // Remove scripts, styles
+        const scripts = clone.getElementsByTagName('script');
+        while (scripts[0]) scripts[0].parentNode.removeChild(scripts[0]);
+        const styles = clone.getElementsByTagName('style');
+        while (styles[0]) styles[0].parentNode.removeChild(styles[0]);
+        const noscripts = clone.getElementsByTagName('noscript');
+        while (noscripts[0]) noscripts[0].parentNode.removeChild(noscripts[0]);
+        const iframes = clone.getElementsByTagName('iframe');
+        while (iframes[0]) iframes[0].parentNode.removeChild(iframes[0]);
+
+        return clone.innerHTML.substring(0, 50000); // 50000 limit
+    };
+
+
     // Send Logic
     sendBtn.addEventListener('click', (e) => {
         if (!isSending) sendMessage();
@@ -930,6 +1095,21 @@
         isSending = true; // Set block flag
         updateSendButton();
 
+        // 0. Prepare Payload (Before clearing state)
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_URL = isLocal ? 'http://localhost:5859' : 'https://back-protostar.ddns.net';
+
+        // Use Clean Context function
+        const contextBody = attachments.length > 0 ? getCleanContext() : undefined;
+
+        const payload = {
+            sessionId: activeSessionId,
+            uuid: serverUUID,
+            mode: attachments.length > 0 ? 'page_context' : 'general',
+            content: text,
+            context: contextBody
+        };
+
         // 1. Update State
         const sessions = getSessions();
         const currentSession = sessions.find(s => s.id === activeSessionId);
@@ -946,26 +1126,58 @@
 
         renderChat(); // Re-render to show new message
 
-        // 3. Mock Response
-        setTimeout(() => {
-            const botMsg = {
-                text: "현재는 목업으로 답변이 불가합니다ㅠㅠ. 조금만 기다려주세요!",
+        // 3. API Call
+        // Payload already prepared at step 0
+
+        // Add pending bot bubble immediately
+        const sessionsForBot = getSessions();
+        const sForBot = sessionsForBot.find(s => s.id === activeSessionId);
+        if (sForBot) {
+            sForBot.messages.push({
+                text: '',
                 type: 'bot',
                 timestamp: new Date().toISOString()
-            };
+            });
+            saveSessions(sessionsForBot);
+            if (activeSessionId === sForBot.id) renderChat();
+        }
 
-            const updatedSessions = getSessions(); // Re-fetch to be safe
-            const s = updatedSessions.find(s => s.id === activeSessionId);
-            if (s) {
-                s.messages.push(botMsg);
-                s.last_updated = new Date().toISOString();
-                saveSessions(updatedSessions);
-                if (activeSessionId === s.id) renderChat(); // Only render if still active
-            }
+        const sendToBackend = (payloadData) => {
+            fetch(`${API_URL}/api/v1/chat/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadData)
+            }).then(res => {
+                if (res.status === 429) {
+                    // Retry logic
+                    // We need a UI for this in chatbot.js? 
+                    // For now, minimal implementation: wait 10s and retry silently or blocked
+                    setTimeout(() => {
+                        sendToBackend(payloadData);
+                    }, 10000);
+                    return;
+                }
+                if (!res.ok) {
+                    throw new Error('Network error');
+                }
+            }).catch(e => {
+                console.error(e);
+                isSending = false;
+                updateSendButton();
+                // Show error message
+                const errSessions = getSessions();
+                const sErr = errSessions.find(s => s.id === activeSessionId);
+                if (sErr) {
+                    const last = sErr.messages[sErr.messages.length - 1];
+                    if (last && last.type === 'bot') last.text = 'Error: Failed to send.';
+                    saveSessions(errSessions);
+                    if (activeSessionId === sErr.id) renderChat();
+                }
+            });
+        };
 
-            isSending = false; // Release block
-            updateSendButton();
-        }, 1000);
+        sendToBackend(payload);
+
     }
 
     // Init

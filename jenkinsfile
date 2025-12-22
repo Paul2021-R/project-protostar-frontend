@@ -22,6 +22,9 @@ pipeline {
         TARGET_PORT = credentials('ssh-port-creds')
         TARGET_PROJECT_PATH = '/home/hansol/workspace/project-protostar-frontend'
         TARGET_INFRA_PATH = '/home/hansol/workspace/project-protostar-server-configs/main-server'
+
+        // Frontend Environment Variables
+        NEXT_PUBLIC_API_URL = 'https://service-protostar.ddns.net'
     }
 
     parameters {
@@ -154,7 +157,7 @@ pipeline {
                 script {
                     try {
                         def imageTag = "${IMAGE_NAME}:${env.BUILD_NUMBER}" 
-                        sh "docker build -t ${imageTag} ./app" 
+                        sh "docker build --build-arg NEXT_PUBLIC_API_URL=${env.NEXT_PUBLIC_API_URL} -t ${imageTag} ./app" 
                     } catch (Exception e) {
                         failureStage = "Build Stage"
                         throw e

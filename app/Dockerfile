@@ -24,6 +24,8 @@ FROM dev_runner AS builder
 COPY . .
 
 # 애플리케이션 빌드
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm run build
 
 # ======= 2. 의존성 증류 스테이지 ========

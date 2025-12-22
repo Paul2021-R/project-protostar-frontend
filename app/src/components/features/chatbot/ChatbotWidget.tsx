@@ -2,16 +2,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  MessageCircle,
   X,
   Send,
   Plus,
-  Paperclip,
   Menu,
   User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5859';
+
 
 // Types
 interface Message {
@@ -57,6 +59,10 @@ export default function ChatbotWidget({
   const [currentMessage, setCurrentMessage] = useState('');
   const [isBubbleVisible, setIsBubbleVisible] = useState(false);
   const [isSending, setIsSending] = useState(false); // Double submit prevention
+  const [serverUUID, setServerUUID] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const [isWaitingForRetry, setIsWaitingForRetry] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
 
   const PROMOTIONAL_MESSAGES = [
     '글에 대해 궁금 하신게 있으세요? 🤗',
@@ -73,7 +79,7 @@ export default function ChatbotWidget({
       // Pick random message
       const randomMsg =
         PROMOTIONAL_MESSAGES[
-          Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
+        Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
         ];
       setCurrentMessage(randomMsg);
       setIsBubbleVisible(true);
@@ -131,6 +137,7 @@ export default function ChatbotWidget({
   };
 
   // --- Effects ---
+  // --- Effects ---
   useEffect(() => {
     // Load sessions from localStorage
     const savedSessions = localStorage.getItem('protostar_sessions');
@@ -155,7 +162,92 @@ export default function ChatbotWidget({
       setActiveSessionId(loadedSessions[0].id);
       setMessages(loadedSessions[0].messages);
     }
+
+    // Load UUID from localStorage
+    const savedUUID = localStorage.getItem('protostar_chat_uuid');
+    if (savedUUID) {
+      setServerUUID(savedUUID);
+    }
   }, []);
+
+  useEffect(() => {
+    // SSE Connection Management
+    if (!activeSessionId) return;
+
+    // cleanup previous
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    // Build URL
+    const baseUrl = `${API_URL}/api/v1/chat/stream/${activeSessionId}`;
+    const url = serverUUID ? `${baseUrl}?uuid=${serverUUID}` : baseUrl;
+
+    const es = new EventSource(url);
+    eventSourceRef.current = es;
+
+    es.onopen = () => {
+      console.log('SSE Connected');
+    };
+
+    es.onmessage = (event) => {
+      // Default message handler (token streaming usually comes here or custom event)
+      try {
+        const data = JSON.parse(event.data);
+        // Handle standard token stream if sending JSON
+        // However, usually tokens are raw text or specific format.
+        // Adapting based on backend "messageStream" which sends payload.
+        // If payload is string token:
+        if (typeof data === 'string') {
+          setMessages((prev) => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg && lastMsg.type === 'bot') {
+              // Update last bot message
+              const updatedLast = { ...lastMsg, text: lastMsg.text + data };
+              return [...prev.slice(0, -1), updatedLast];
+            } else {
+              // New bot message start (should ideally trigger on first token)
+              return [...prev, { text: data, type: 'bot', timestamp: new Date().toISOString() }];
+            }
+          });
+        }
+      } catch (e) {
+        // If raw text
+        setMessages((prev) => {
+          const lastMsg = prev[prev.length - 1];
+          if (lastMsg && lastMsg.type === 'bot') {
+            return [...prev.slice(0, -1), { ...lastMsg, text: lastMsg.text + event.data }];
+          } else {
+            return [...prev, { text: event.data, type: 'bot', timestamp: new Date().toISOString() }];
+          }
+        });
+      }
+    };
+
+    // Custom Events
+    es.addEventListener('init', (event: MessageEvent) => {
+      const data = JSON.parse(event.data);
+      if (data.uuid) {
+        setServerUUID(data.uuid);
+        localStorage.setItem('protostar_chat_uuid', data.uuid);
+      }
+    });
+
+    es.addEventListener('done', () => {
+      setIsSending(false);
+    });
+
+    es.onerror = (err) => {
+      console.error('SSE Error', err);
+      // es.close(); // Optional: close on error or let it retry
+    };
+
+    return () => {
+      es.close();
+    };
+
+  }, [activeSessionId, serverUUID]);
+
 
   useEffect(() => {
     // Auto-save sessions whenever they change
@@ -210,29 +302,75 @@ export default function ChatbotWidget({
     }
   };
 
-  const handleSendMessage = () => {
+  const sendMessageToBackend = async (payload: any) => {
+    try {
+      const response = await fetch(`${API_URL}/api/v1/chat/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.status === 429) {
+        // Rate Limit
+        setIsWaitingForRetry(true);
+        setRetryCountdown(10);
+
+        // Countdown Timer
+        const timer = setInterval(() => {
+          setRetryCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsWaitingForRetry(false);
+              sendMessageToBackend(payload); // Retry with original payload
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+        return; // Keep isSending true
+      }
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      // Success - SSE will handle the rest (streaming response)
+      // Add pending bot bubble?
+      setMessages((prev) => [...prev, { text: '', type: 'bot', timestamp: new Date().toISOString() }]);
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setIsSending(false);
+      setMessages((prev) => [...prev, { text: 'Error: Failed to send message.', type: 'bot', timestamp: new Date().toISOString() }]);
+    }
+  };
+
+  const handleSendMessage = async () => {
     const activeSession = sessions.find((s) => s.id === activeSessionId);
     if (
       isSending ||
       (!inputValue.trim() && attachments.length === 0) ||
       !activeSession ||
-      !isSessionWritable(activeSession)
+      !isSessionWritable(activeSession) ||
+      !serverUUID
     )
       return;
 
     setIsSending(true);
 
+    const userText = inputValue;
     const newMessage: Message = {
-      text: inputValue,
+      text: userText,
       type: 'user',
       timestamp: new Date().toISOString(),
       attachments: attachments.length > 0 ? [...attachments] : undefined,
     };
 
+    // Optimistic Update
     const updatedMessages = [...messages, newMessage];
     setMessages(updatedMessages);
     setInputValue('');
-    setAttachments([]);
+    setAttachments([]); // Clear attachments immediately
 
     // Update session
     const updatedSessions = sessions.map((s) => {
@@ -247,31 +385,18 @@ export default function ChatbotWidget({
     });
     setSessions(updatedSessions);
 
-    // Mock Response
-    setTimeout(() => {
-      const botMsg: Message = {
-        text: '죄송합니다. 현재 데모 버전이라 실제 AI 응답은 연결되지 않았습니다.',
-        type: 'bot',
-        timestamp: new Date().toISOString(),
-      };
-      const withBot = [...updatedMessages, botMsg];
-      setMessages(withBot);
+    // Prepare Payload
+    const payload = {
+      sessionId: activeSessionId,
+      uuid: serverUUID,
+      mode: newMessage.attachments && newMessage.attachments.length > 0 ? 'page_context' : 'general',
+      content: userText,
+      context: newMessage.attachments && newMessage.attachments.length > 0 ? newMessage.attachments[0].content : undefined
+    };
 
-      // Update session again
-      const sessionsWithBot = updatedSessions.map((s) => {
-        if (s.id === activeSessionId) {
-          return {
-            ...s,
-            messages: withBot,
-            last_updated: new Date().toISOString(),
-          };
-        }
-        return s;
-      });
-      setSessions(sessionsWithBot);
-      setIsSending(false);
-    }, 1000);
+    sendMessageToBackend(payload);
   };
+
 
   const handleAddAttachment = () => {
     // 1. Prevent root path attachment
@@ -283,19 +408,34 @@ export default function ChatbotWidget({
     const title = document.title;
     if (attachments.some((a) => a.title === title)) return;
 
-    // 2. Extract Body Text Only (Simple extraction)
-    // Create a clone to strip tags if needed, or just use innerText
-    // innerText is usually good enough for raw text content visible to user
-    const content = document.body.innerText;
+    // 2. Extract Body Text Only (Clean HTML)
+    const clone = document.body.cloneNode(true) as HTMLElement;
+
+    // Remove scripts, styles, etc.
+    const scripts = clone.getElementsByTagName('script');
+    while (scripts[0]) scripts[0].parentNode?.removeChild(scripts[0]);
+
+    const styles = clone.getElementsByTagName('style');
+    while (styles[0]) styles[0].parentNode?.removeChild(styles[0]);
+
+    const noscripts = clone.getElementsByTagName('noscript');
+    while (noscripts[0]) noscripts[0].parentNode?.removeChild(noscripts[0]);
+
+    const iframes = clone.getElementsByTagName('iframe');
+    while (iframes[0]) iframes[0].parentNode?.removeChild(iframes[0]);
+
+    // Get cleaned HTML
+    const content = clone.innerHTML;
 
     const newAtt = {
       title,
-      content: content.substring(0, 5000), // Limit size
+      content: content.substring(0, 50000), // Limit size - Increased for HTML
       url: window.location.href,
       timestamp: new Date().toISOString(),
     };
     setAttachments([...attachments, newAtt]);
   };
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -521,17 +661,26 @@ export default function ChatbotWidget({
                 disabled={isLocked || isSending}
                 className="rounded-full bg-gray-50 border-gray-200 focus-visible:ring-1"
               />
-              <button
-                onClick={handleSendMessage}
-                disabled={
-                  (!inputValue.trim() && attachments.length === 0) ||
-                  isLocked ||
-                  isSending
-                }
-                className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked || isSending ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
-              >
-                <Send size={20} />
-              </button>
+              {isWaitingForRetry ? (
+                <div className="relative w-[40px] h-[40px] flex items-center justify-center">
+                  <div className="absolute inset-0 border-2 border-gray-200 rounded-full"></div>
+                  <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs text-blue-500 font-bold z-10">{retryCountdown}</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSendMessage}
+                  disabled={
+                    (!inputValue.trim() && attachments.length === 0) ||
+                    isLocked ||
+                    isSending
+                  }
+                  className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked || isSending ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
+                >
+                  {isSending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                </button>
+              )}
+
             </div>
           </div>
         </div>
