@@ -16,5 +16,7 @@ export function PageTitle() {
   // Simple matching or fallback
   const title = titles[pathname] || 'Dashboard';
 
-  return <div className="text-3xl font-bold tracking-tight">{title}</div>;
+  return (
+    <div className="text-2xl font-bold tracking-tight lg:text-3xl">{title}</div>
+  );
 }

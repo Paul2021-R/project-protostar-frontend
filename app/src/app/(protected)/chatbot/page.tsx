@@ -39,7 +39,7 @@ export default function ChatbotConfigPage() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="border p-4 rounded-lg bg-white shadow-sm self-start">
+        <div className="border p-4 rounded-lg bg-card text-card-foreground shadow-sm self-start">
           <h2 className="text-lg font-semibold mb-4">Settings</h2>
 
           <div className="space-y-6">
@@ -67,7 +67,7 @@ export default function ChatbotConfigPage() {
               <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
                 <label className="text-sm font-medium">Embed Code</label>
                 <Textarea
-                  className="font-mono text-xs h-32 bg-slate-50"
+                  className="font-mono text-xs h-32 bg-background"
                   readOnly
                   value={embedCode}
                 />
@@ -79,8 +79,8 @@ export default function ChatbotConfigPage() {
           </div>
         </div>
 
-        <div className="relative border p-4 rounded-lg bg-gray-100 shadow-inner h-[600px] flex items-center justify-center overflow-hidden">
-          <div className="absolute top-4 left-4 text-sm text-gray-500">
+        <div className="relative border p-4 rounded-lg bg-card text-card-foreground shadow-sm h-[600px] flex items-center justify-center overflow-hidden">
+          <div className="absolute top-4 left-4 text-sm text-muted-foreground">
             Preview Area
           </div>
           {/* The widget will be fixed positioned, but restricted by the iframe conceptually if we were fully isolating it. 

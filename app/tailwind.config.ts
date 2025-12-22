@@ -7,7 +7,13 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      screens: {
+        sm: '640px',
+        md: '768px',
+        lg: '1024px',
+      },
+    },
   },
   plugins: [],
   // --- ⬇️ 이 부분을 추가해야 합니다 ⬇️ ---

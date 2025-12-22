@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ModeToggle } from '@/components/mode-toggle';
 
 export function Footer() {
   return (
@@ -9,7 +10,8 @@ export function Footer() {
             Built by Hansol. The source code is available on GitHub.
           </p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
+          <ModeToggle />
           <Link
             href="/terms-of-service"
             className="text-xs hover:underline underline-offset-4"
