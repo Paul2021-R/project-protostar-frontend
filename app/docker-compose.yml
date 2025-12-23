@@ -1,7 +1,7 @@
 # Docker Compose 파일 형식 버전
 name: project-protostar-frontend
 services:
-  dev:
+  next-dev:
     container_name: protostar-next-dev
     build:
       context: .
@@ -14,7 +14,7 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-  prod:
+  next-prod:
     container_name: protostar-next-prod
     build:
       context: .
