@@ -1,19 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  X,
-  Send,
-  Plus,
-  Menu,
-  User,
-} from 'lucide-react';
+import { X, Send, Plus, Menu, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5859';
-
 
 // Types
 interface Message {
@@ -79,7 +72,7 @@ export default function ChatbotWidget({
       // Pick random message
       const randomMsg =
         PROMOTIONAL_MESSAGES[
-        Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
+          Math.floor(Math.random() * PROMOTIONAL_MESSAGES.length)
         ];
       setCurrentMessage(randomMsg);
       setIsBubbleVisible(true);
@@ -206,7 +199,14 @@ export default function ChatbotWidget({
               return [...prev.slice(0, -1), updatedLast];
             } else {
               // New bot message start (should ideally trigger on first token)
-              return [...prev, { text: data, type: 'bot', timestamp: new Date().toISOString() }];
+              return [
+                ...prev,
+                {
+                  text: data,
+                  type: 'bot',
+                  timestamp: new Date().toISOString(),
+                },
+              ];
             }
           });
         }
@@ -215,9 +215,19 @@ export default function ChatbotWidget({
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg && lastMsg.type === 'bot') {
-            return [...prev.slice(0, -1), { ...lastMsg, text: lastMsg.text + event.data }];
+            return [
+              ...prev.slice(0, -1),
+              { ...lastMsg, text: lastMsg.text + event.data },
+            ];
           } else {
-            return [...prev, { text: event.data, type: 'bot', timestamp: new Date().toISOString() }];
+            return [
+              ...prev,
+              {
+                text: event.data,
+                type: 'bot',
+                timestamp: new Date().toISOString(),
+              },
+            ];
           }
         });
       }
@@ -244,9 +254,7 @@ export default function ChatbotWidget({
     return () => {
       es.close();
     };
-
   }, [activeSessionId, serverUUID]);
-
 
   useEffect(() => {
     // Auto-save sessions whenever they change
@@ -306,7 +314,7 @@ export default function ChatbotWidget({
       const response = await fetch(`${API_URL}/api/v1/chat/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (response.status === 429) {
@@ -335,12 +343,21 @@ export default function ChatbotWidget({
 
       // Success - SSE will handle the rest (streaming response)
       // Add pending bot bubble?
-      setMessages((prev) => [...prev, { text: '', type: 'bot', timestamp: new Date().toISOString() }]);
-
+      setMessages((prev) => [
+        ...prev,
+        { text: '', type: 'bot', timestamp: new Date().toISOString() },
+      ]);
     } catch (error) {
       console.error('Failed to send message:', error);
       setIsSending(false);
-      setMessages((prev) => [...prev, { text: 'Error: Failed to send message.', type: 'bot', timestamp: new Date().toISOString() }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: 'Error: Failed to send message.',
+          type: 'bot',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }
   };
 
@@ -388,14 +405,19 @@ export default function ChatbotWidget({
     const payload = {
       sessionId: activeSessionId,
       uuid: serverUUID,
-      mode: newMessage.attachments && newMessage.attachments.length > 0 ? 'page_context' : 'general',
+      mode:
+        newMessage.attachments && newMessage.attachments.length > 0
+          ? 'page_context'
+          : 'general',
       content: userText,
-      context: newMessage.attachments && newMessage.attachments.length > 0 ? newMessage.attachments[0].content : undefined
+      context:
+        newMessage.attachments && newMessage.attachments.length > 0
+          ? newMessage.attachments[0].content
+          : undefined,
     };
 
     sendMessageToBackend(payload);
   };
-
 
   const handleAddAttachment = () => {
     // 1. Prevent root path attachment
@@ -434,7 +456,6 @@ export default function ChatbotWidget({
     };
     setAttachments([...attachments, newAtt]);
   };
-
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -664,7 +685,9 @@ export default function ChatbotWidget({
                 <div className="relative w-[40px] h-[40px] flex items-center justify-center">
                   <div className="absolute inset-0 border-2 border-gray-200 rounded-full"></div>
                   <div className="absolute inset-0 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-xs text-blue-500 font-bold z-10">{retryCountdown}</span>
+                  <span className="text-xs text-blue-500 font-bold z-10">
+                    {retryCountdown}
+                  </span>
                 </div>
               ) : (
                 <button
@@ -676,10 +699,13 @@ export default function ChatbotWidget({
                   }
                   className={`p-2 transition-colors ${(!inputValue.trim() && attachments.length === 0) || isLocked || isSending ? 'text-gray-300' : 'text-blue-500 hover:scale-110'}`}
                 >
-                  {isSending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                  {isSending ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <Send size={20} />
+                  )}
                 </button>
               )}
-
             </div>
           </div>
         </div>
