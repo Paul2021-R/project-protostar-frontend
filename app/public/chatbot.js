@@ -603,7 +603,9 @@
     let serverUUID = localStorage.getItem('protostar_chat_uuid') || null;
     let eventSource = null;
     let isWaitingForRetry = false;
-    let retryCountdown = 0;
+    let retryCount = 0;
+    const MAX_RETRIES = 10;
+    const RETRY_DELAY = 10000; // 10 seconds
 
 
     // --- Data Management ---
@@ -671,7 +673,18 @@
             if (sessions.length > 0) {
                 // Get most recently updated
                 sessions.sort((a, b) => new Date(b.last_updated) - new Date(a.last_updated));
-                activeSessionId = sessions[0].id;
+                const lastSession = sessions[0];
+
+                // Check if last session is from today
+                const today = new Date().toDateString();
+                const isToday = new Date(lastSession.created_at).toDateString() === today;
+
+                if (isToday) {
+                    activeSessionId = lastSession.id;
+                } else {
+                    // Start fresh if last session was a different day
+                    activeSessionId = createSession();
+                }
             } else {
                 activeSessionId = createSession();
             }
@@ -759,6 +772,7 @@
                 activeSessionId = s.id;
                 sessionOverlay.classList.remove('active'); // Close overlay
                 renderChat();
+                connectSSE(activeSessionId); // Reconnect to selected session
             });
 
             sessionListItems.appendChild(div);
@@ -784,10 +798,12 @@
                 const session = getActiveSession();
                 if (session) {
                     activeSessionId = session.id;
-                    renderChat();
-                    connectSSE(activeSessionId); // Connect SSE on restore
-
                 }
+            }
+
+            if (activeSessionId) {
+                renderChat();
+                // Note: connectSSE is already called on init, but idempotent calls are fine or we can skip
             }
         }
     };
@@ -1148,41 +1164,93 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payloadData)
             }).then(res => {
-                if (res.status === 429) {
-                    // Retry logic
-                    // We need a UI for this in chatbot.js? 
-                    // For now, minimal implementation: wait 10s and retry silently or blocked
-                    setTimeout(() => {
-                        sendToBackend(payloadData);
-                    }, 10000);
-                    return;
+                if (res.status === 429 || res.status >= 500) {
+                    throw new Error(`Server Error: ${res.status}`);
                 }
                 if (!res.ok) {
                     throw new Error('Network error');
                 }
             }).catch(e => {
                 console.error(e);
-                isSending = false;
-                updateSendButton();
-                // Show error message
-                const errSessions = getSessions();
-                const sErr = errSessions.find(s => s.id === activeSessionId);
-                if (sErr) {
-                    const last = sErr.messages[sErr.messages.length - 1];
-                    if (last && last.type === 'bot') last.text = 'Error: Failed to send.';
-                    saveSessions(errSessions);
-                    if (activeSessionId === sErr.id) renderChat();
+
+                // Retry Logic
+                if (retryCount < MAX_RETRIES) {
+                    retryCount++;
+                    isWaitingForRetry = true;
+
+                    // Show Retry Message
+                    const sessions = getSessions();
+                    const s = sessions.find(s => s.id === activeSessionId);
+                    if (s) {
+                        const lastMsg = s.messages[s.messages.length - 1];
+                        if (lastMsg && lastMsg.type === 'bot') {
+                            lastMsg.text = `서버와 연결을 다시 시도하고 있어요... 잠시만 기다려 주세요! 🥺🔄 (${retryCount}/${MAX_RETRIES})`;
+                        } else {
+                            s.messages.push({
+                                text: `서버와 연결을 다시 시도하고 있어요... 잠시만 기다려 주세요! 🥺🔄 (${retryCount}/${MAX_RETRIES})`,
+                                type: 'bot',
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                        saveSessions(sessions);
+                        if (activeSessionId === s.id) {
+                            renderChat();
+                            input.disabled = true; // Lock Input
+                            input.placeholder = "연결을 복구 중입니다...";
+                        }
+                    }
+
+                    setTimeout(() => {
+                        sendToBackend(payloadData);
+                    }, RETRY_DELAY);
+
+                } else {
+                    // Final Failure
+                    isSending = false;
+                    isWaitingForRetry = false;
+                    retryCount = 0;
+                    updateSendButton();
+
+                    const sessions = getSessions();
+                    const s = sessions.find(s => s.id === activeSessionId);
+                    if (s) {
+                        const lastMsg = s.messages[s.messages.length - 1];
+                        const failMsg = "죄송해요, 서버 연결이 원활하지 않네요. 😭 주인장이 곧 확인하고 복구할 거예요! 잠시 뒤에 다시 찾아와주세요.";
+                        if (lastMsg && lastMsg.type === 'bot') {
+                            lastMsg.text = failMsg;
+                        } else {
+                            s.messages.push({
+                                text: failMsg,
+                                type: 'bot',
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                        saveSessions(sessions);
+                        if (activeSessionId === s.id) {
+                            renderChat();
+                            input.disabled = true;
+                            input.placeholder = "현재 이용이 불가능합니다 😭";
+                            sendBtn.disabled = true;
+                        }
+                    }
                 }
             });
         };
 
+        // Reset retry count on new message
+        retryCount = 0;
         sendToBackend(payload);
 
     }
 
     // Init
-    // Try to load one immediately to handle migration
+    // Try to load one immediately to handle migration & pre-connection
     getSessions();
+    const activeSession = getActiveSession();
+    if (activeSession) {
+        // Pre-connect
+        connectSSE(activeSession.id);
+    }
 
     // --- Bubble Logic ---
     const PROMOTIONAL_MESSAGES = [

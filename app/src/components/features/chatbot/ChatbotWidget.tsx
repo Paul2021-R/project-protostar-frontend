@@ -137,7 +137,6 @@ export default function ChatbotWidget({
   };
 
   // --- Effects ---
-  // --- Effects ---
   useEffect(() => {
     // Load sessions from localStorage
     const savedSessions = localStorage.getItem('protostar_sessions');
