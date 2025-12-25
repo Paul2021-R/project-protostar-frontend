@@ -21,6 +21,7 @@
       border: 2px solid white;
       z-index: 1000;
       overflow: hidden;
+      box-sizing: border-box;
     }
 
     .protostar-icon img {
@@ -47,6 +48,7 @@
       transition: 0.3s;
       z-index: 1000;
       overflow: hidden;
+      box-sizing: border-box;
       font-family: Helvetica, Arial, sans-serif;
     }
 
@@ -393,34 +395,10 @@
         transform: translateX(2px);
     }
 
-    @media (max-width: 1024px) {
-      .protostar-icon {
-        width: 38px;
-        height: 38px;
-        left: 35px;
-        border-width: 1.5px;
-      }
-    }
-
-    @media (max-width: 600px) {
-      .protostar-icon {
-        width: 29px;
-        height: 29px;
-        left: 20px;
-        border-width: 1.5px;
-      }
-      .protostar-window {
-        left: 20px;
-        right: 20px;
-        width: auto;
-        bottom: 93px;
-        height: 60vh;
-      }
-    }
-
     /* Speech Bubble */
     .protostar-bubble {
         position: fixed;
+        box-sizing: border-box;
         bottom: 125px;
         left: 60px;
         background: white;
@@ -458,6 +436,51 @@
         border-right: 1px solid rgba(0,0,0,0.05);
         transform: rotate(45deg);
     }
+
+    @media (max-width: 1024px) {
+      .protostar-icon {
+        width: 38px;
+        height: 38px;
+        left: 35px;
+        border-width: 1.5px;
+      }
+      .protostar-bubble {
+        left: 35px;
+        bottom: 110px;
+      }
+      .protostar-bubble::after {
+        left: 13px;
+      }
+      .protostar-window {
+        left: 35px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .protostar-icon {
+        width: 29px;
+        height: 29px;
+        left: 20px;
+        border-width: 1.5px;
+      }
+      .protostar-window {
+        left: 20px;
+        right: 20px;
+        width: auto;
+        bottom: 93px;
+        height: 60vh;
+      }
+      .protostar-bubble {
+        left: 20px;
+        bottom: 85px;
+        border-radius: 8px;
+      }
+      .protostar-bubble::after {
+        left: 8.5px;
+      }
+    }
+
+
   `;
     document.head.appendChild(style);
 
