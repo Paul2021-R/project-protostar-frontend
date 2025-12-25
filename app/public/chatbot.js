@@ -481,6 +481,141 @@
     }
 
 
+    /* Dark Mode Support */
+    @media (prefers-color-scheme: dark) {
+      .protostar-window,
+      .protostar-body,
+      .input-area {
+        background: #2d2d2d;
+      }
+
+      .protostar-header {
+        background: #2d2d2d;
+        border-bottom: 1px solid #444;
+        color: #e0e0e0;
+      }
+
+      .header-title {
+        color: #e0e0e0;
+      }
+
+      .icon-btn {
+        color: #aaa;
+      }
+      .icon-btn:hover {
+        color: #fff;
+      }
+      
+      .user-icon {
+        border-color: #aaa;
+      }
+      .user-icon svg {
+        stroke: #aaa;
+      }
+
+      .protostar-icon {
+        background: #2d2d2d;
+        border-color: #444;
+        filter: grayscale(100%) brightness(0.7);
+      }
+
+      .protostar-bubble {
+        background: #333;
+        color: #ddd;
+        border-color: #444;
+      }
+
+      .protostar-bubble::after {
+        background: #333;
+        border-bottom: 1px solid #444;
+        border-right: 1px solid #444;
+      }
+
+      .message-bubble.bot {
+        background: #2d2d2d;
+        color: #e0e0e0;
+        border: 1px solid #444;
+      }
+
+      .message-bubble.user {
+        background: #1a3b5c;
+        color: #bbdefb;
+      }
+      
+      .attachment-pill-in-chat {
+        background: rgba(0,0,0,0.3);
+        border-color: rgba(255,255,255,0.1);
+        color: #ccc;
+      }
+      .message-bubble.user .attachment-pill-in-chat {
+        background: rgba(0,0,0,0.2);
+        border-color: rgba(13, 71, 161, 0.4);
+      }
+
+      .chat-input {
+        background: #383838;
+        color: #fff;
+        border: 1px solid #555;
+      }
+
+      .add-btn {
+        background: #383838;
+        color: #aaa;
+      }
+      .add-btn:hover {
+        background: #444;
+        color: #ccc;
+      }
+      
+      /* Overlays */
+      .session-list-overlay {
+        background: #2d2d2d;
+      }
+      .session-list-overlay h4 {
+        color: #e0e0e0 !important;
+      }
+      .session-item {
+        background: #333;
+        border-color: #444;
+      }
+      .session-item:hover {
+        border-color: #666;
+      }
+      .session-item.active {
+        border-color: #007bff;
+        background: #1a3b5c;
+      }
+      .session-title {
+        color: #ddd;
+      }
+      
+      .overlay-base {
+        background: rgba(30, 30, 30, 0.95);
+      }
+      .limit-overlay h3 {
+        color: #e0e0e0;
+      }
+      .limit-overlay p {
+        color: #aaa;
+      }
+      .btn-secondary {
+        background: #444;
+        color: #ddd;
+      }
+      .btn-secondary:hover {
+        background: #555;
+      }
+      
+      .attachment-pill {
+        background: #383838;
+        border-color: #555;
+        color: #ddd;
+      }
+      .attachment-pill .remove-btn {
+         color: #bbb;
+      }
+    }
+
   `;
     document.head.appendChild(style);
 
