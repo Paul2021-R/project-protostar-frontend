@@ -1163,6 +1163,13 @@
                     }
 
                     if (data.type === 'done') {
+                        // Protocol update: Handle structured done signal
+                        if (data.uuid) {
+                            serverUUID = data.uuid;
+                            localStorage.setItem('protostar_chat_uuid', data.uuid);
+                        }
+                        console.log('Protostar Stream Done:', data);
+
                         isSending = false;
                         updateSendButton();
                         return;
