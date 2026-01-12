@@ -1321,27 +1321,17 @@
                 if (lastMsg && lastMsg.type === 'bot') {
                     // Replace content completely
                     lastMsg.text = errorHtml;
-                    // Mark as error purely for internal if needed, or just rely on text
+                    lastMsg.isError = true;
                 } else {
-                    // Should act on last bot bubble, if not exists push new?
                     s.messages.push({
                         text: errorHtml,
                         type: 'bot',
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        isError: true
                     });
                 }
                 saveSessions(sessions);
                 if (activeSessionId === s.id) {
-                    renderChat();
-                    // In renderChat, escapeHtml is used. We need to handle this specific HTML.
-                    // Or we can add a flag to message 'isError' and render differently?
-                    // Currently implementation plan said to use escapeHtml usually?
-                    // Wait, previous code uses escapeHtml(msg.text).
-                    // So we must modify renderChat to support innerHTML for this specific error or handle it.
-                    // Quick fix: Add 'isError' flag to message object.
-                    const lastMsgRef = s.messages[s.messages.length - 1]; // Re-fetch
-                    lastMsgRef.isError = true;
-                    saveSessions(sessions);
                     renderChat();
                 }
             }
