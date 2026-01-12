@@ -480,8 +480,11 @@
       }
     }
 
-
-    /* Dark Mode Support */
+    .protostar-error-text {
+      color: #ff6b6b; /* Soft pastel red */
+    }
+    
+    /* Dark Mode Overrides */
     @media (prefers-color-scheme: dark) {
       .protostar-window,
       .protostar-body,
@@ -613,6 +616,12 @@
       }
       .attachment-pill .remove-btn {
          color: #bbb;
+      }
+      .attachment-pill .remove-btn {
+         color: #bbb;
+      }
+      .protostar-error-text {
+        color: #ff8a80; /* Soft coral red for dark mode */
       }
     }
     
@@ -803,8 +812,13 @@
     let isWaitingForRetry = false;
     let retryCount = 0;
     const MAX_RETRIES = 10;
+
     const RETRY_DELAY = 10000; // 10 seconds
 
+    // Watchdog State
+    let lastHeartbeatTime = Date.now();
+    let lastTokenTime = Date.now();
+    let watchdogTimer = null;
 
     // --- Data Management ---
     const getSessions = () => {
@@ -949,6 +963,9 @@
                     <div class="protostar-dot"></div>
                  </div>`;
                 bubble.classList.add('loading-bubble');
+            } else if (msg.isError) {
+                // Error Case
+                html += `<div class="message-text protostar-error-text">${msg.text}</div>`;
             } else {
                 html += `<div class="message-text">${escapeHtml(msg.text)}</div>`;
             }
@@ -1242,6 +1259,73 @@
 
         eventSource.onopen = () => {
             console.log('Protostar SSE Connected');
+            lastHeartbeatTime = Date.now();
+            lastTokenTime = Date.now();
+            startStreamWatchdog();
+        };
+
+        const startStreamWatchdog = () => {
+            if (watchdogTimer) clearInterval(watchdogTimer);
+            watchdogTimer = setInterval(() => {
+                const now = Date.now();
+                // 1. Heartbeat Check (60s)
+                if (now - lastHeartbeatTime > 60000) {
+                    handleStreamError("Connection lost (Heartbeat timeout)");
+                    return;
+                }
+                // 2. Token Stream Check (30s) - Only if sending/streaming
+                if (isSending && (now - lastTokenTime > 30000)) {
+                    handleStreamError("Stream hanging (Token timeout)");
+                    return;
+                }
+            }, 1000);
+        };
+
+        const handleStreamError = (reason) => {
+            console.warn("Protostar Stream Error:", reason);
+            if (eventSource) {
+                eventSource.close();
+                // eventSource = null; // Maybe keep instance or nullify? Logic uses it to check.
+            }
+            if (watchdogTimer) clearInterval(watchdogTimer);
+
+            isSending = false;
+
+            // UI Update
+            const sessions = getSessions();
+            const s = sessions.find(sess => sess.id === sessionId);
+            if (s) {
+                const lastMsg = s.messages[s.messages.length - 1];
+                const errorHtml = '<i>현재 서비스 상태가 좋지 않아 연결이 강제 종료 되었습니다. 관리자에게 문의 부탁드립니다.</i>';
+
+                if (lastMsg && lastMsg.type === 'bot') {
+                    // Replace content completely
+                    lastMsg.text = errorHtml;
+                    // Mark as error purely for internal if needed, or just rely on text
+                } else {
+                    // Should act on last bot bubble, if not exists push new?
+                    s.messages.push({
+                        text: errorHtml,
+                        type: 'bot',
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                saveSessions(sessions);
+                if (activeSessionId === s.id) {
+                    renderChat();
+                    // In renderChat, escapeHtml is used. We need to handle this specific HTML.
+                    // Or we can add a flag to message 'isError' and render differently?
+                    // Currently implementation plan said to use escapeHtml usually?
+                    // Wait, previous code uses escapeHtml(msg.text).
+                    // So we must modify renderChat to support innerHTML for this specific error or handle it.
+                    // Quick fix: Add 'isError' flag to message object.
+                    const lastMsgRef = s.messages[s.messages.length - 1]; // Re-fetch
+                    lastMsgRef.isError = true;
+                    saveSessions(sessions);
+                    renderChat();
+                }
+            }
+            updateSendButton();
         };
 
         eventSource.onmessage = (event) => {
@@ -1258,7 +1342,8 @@
                         return;
                     }
                     if (data.type === 'heartbeat') {
-                        // Ignore heartbeat
+                        // Ignore heartbeat but update time
+                        lastHeartbeatTime = Date.now();
                         return;
                     }
                     // If it is a token object (if backend changes), handle here?
@@ -1270,6 +1355,9 @@
 
                     if (data.type === 'message') {
                         const content = data.content;
+                        lastTokenTime = Date.now();
+                        lastHeartbeatTime = Date.now(); // Data implies connection alive
+
                         if (typeof content === 'string') {
                             const sessions = getSessions();
                             const s = sessions.find(sess => sess.id === sessionId);
