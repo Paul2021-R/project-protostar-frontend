@@ -1250,6 +1250,9 @@
 
     // --- SSE Connection Logic ---
     const connectSSE = (sessionId) => {
+        // Prevent timer leak on reconnect
+        if (watchdogTimer) clearInterval(watchdogTimer);
+
         if (!sessionId) return;
         if (eventSource) eventSource.close();
 
