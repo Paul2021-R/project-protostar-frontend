@@ -480,8 +480,11 @@
       }
     }
 
-
-    /* Dark Mode Support */
+    .protostar-error-text {
+      color: #ff6b6b; /* Soft pastel red */
+    }
+    
+    /* Dark Mode Overrides */
     @media (prefers-color-scheme: dark) {
       .protostar-window,
       .protostar-body,
@@ -614,6 +617,44 @@
       .attachment-pill .remove-btn {
          color: #bbb;
       }
+      .protostar-error-text {
+        color: #ff8a80; /* Soft coral red for dark mode */
+      }
+    }
+    
+    /* Loading Dots Animation */
+    .protostar-loading-dots {
+      display: flex;
+      gap: 4px;
+      padding: 5px 0;
+      justify-content: center;
+      align-items: center;
+      min-width: 40px;
+    }
+    .protostar-dot {
+      width: 6px;
+      height: 6px;
+      background: #888;
+      border-radius: 50%;
+      animation: protostar-bounce 1.4s infinite ease-in-out both;
+    }
+    .protostar-dot:nth-child(1) { animation-delay: -0.32s; }
+    .protostar-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes protostar-bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    
+    @keyframes protostar-fade-in {
+      from { opacity: 0; transform: translateY(2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .protostar-char-fade {
+        animation: protostar-fade-in 0.3s ease-out forwards;
+        opacity: 0;
+        display: inline-block;
     }
 
   `;
@@ -709,6 +750,13 @@
     let attachments = [];
     let isSending = false; // Prevents double submission
 
+    // Typing Effect State
+    let typeQueue = [];
+    let typeQueueIndex = 0;
+    let isTypingLoopRunning = false;
+    let typingGeneration = 0;
+
+
     // --- Constants ---
     const MAX_SESSIONS_PER_DAY = 3;
     const MAX_MESSAGES_PER_SESSION = 10;
@@ -763,8 +811,13 @@
     let isWaitingForRetry = false;
     let retryCount = 0;
     const MAX_RETRIES = 10;
+
     const RETRY_DELAY = 10000; // 10 seconds
 
+    // Watchdog State
+    let lastHeartbeatTime = Date.now();
+    let lastTokenTime = Date.now();
+    let watchdogTimer = null;
 
     // --- Data Management ---
     const getSessions = () => {
@@ -864,6 +917,12 @@
 
     // --- Render ---
     const renderChat = () => {
+        // Reset typing state on re-render to prevent cross-session bleeding
+        typingGeneration++;
+        typeQueue = [];
+        typeQueueIndex = 0;
+        isTypingLoopRunning = false;
+
         messageList.innerHTML = '';
         const session = getActiveSession();
         if (!session) return; // Should not happen unless limit prevented creation
@@ -889,7 +948,7 @@
             updateSendButton(); // Re-eval send button
         }
 
-        session.messages.forEach(msg => {
+        session.messages.forEach((msg, index) => {
             const bubble = document.createElement('div');
             bubble.className = `message-bubble ${msg.type}`;
 
@@ -899,12 +958,121 @@
                     html += `<div class="attachment-pill-in-chat">📄 ${escapeHtml(att.title)}</div>`;
                 });
             }
-            html += `<div>${escapeHtml(msg.text)}</div>`;
+
+            // Loading Animation Check: If it's a bot message, empty, and the LATEST message
+            if (msg.type === 'bot' && !msg.text && (index === session.messages.length - 1)) {
+                html += `
+                 <div class="protostar-loading-dots">
+                    <div class="protostar-dot"></div>
+                    <div class="protostar-dot"></div>
+                    <div class="protostar-dot"></div>
+                 </div>`;
+                bubble.classList.add('loading-bubble');
+            } else if (msg.isError) {
+                // Error Case
+                html += `<div class="message-text protostar-error-text">${msg.text}</div>`;
+            } else {
+                html += `<div class="message-text">${escapeHtml(msg.text)}</div>`;
+            }
 
             bubble.innerHTML = html;
             messageList.appendChild(bubble);
         });
         scrollToBottom();
+    };
+
+    const ensureTypingLoop = () => {
+        if (isTypingLoopRunning && (typeQueue.length - typeQueueIndex) > 0) return;
+        if (isTypingLoopRunning) return;
+
+        isTypingLoopRunning = true;
+        const myGeneration = typingGeneration;
+        let lastTime = 0;
+        const RENDER_INTERVAL = 20; // 20ms throttle
+
+        const loop = (timestamp) => {
+            // Generation Check: invalidates old loops
+            if (myGeneration !== typingGeneration) {
+                isTypingLoopRunning = false;
+                return;
+            }
+
+            if (typeQueueIndex >= typeQueue.length) {
+                isTypingLoopRunning = false;
+                typeQueue = []; // Cleanup
+                typeQueueIndex = 0;
+                return;
+            }
+
+            if (!lastTime) lastTime = timestamp;
+            const elapsed = timestamp - lastTime;
+
+            if (elapsed < RENDER_INTERVAL) {
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            lastTime = timestamp;
+
+            let lastBubble = messageList.lastElementChild;
+            // Validations
+            if (!lastBubble || !lastBubble.classList.contains('bot')) {
+                // If queue has items but no bubble, create one to prevent data loss
+                if (typeQueueIndex < typeQueue.length) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble bot';
+                    bubble.innerHTML = '<div class="message-text"></div>';
+                    messageList.appendChild(bubble);
+                    lastBubble = bubble;
+                } else {
+                    isTypingLoopRunning = false;
+                    return;
+                }
+            }
+
+            // Remove loading dots if present
+            const loadingDots = lastBubble.querySelector('.protostar-loading-dots');
+            if (loadingDots) {
+                loadingDots.remove();
+                lastBubble.classList.remove('loading-bubble');
+                // Ensure text container exists
+                if (!lastBubble.querySelector('.message-text')) {
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'message-text';
+                    lastBubble.appendChild(textDiv);
+                }
+            }
+
+            let textDiv = lastBubble.querySelector('.message-text');
+            if (!textDiv) {
+                // Fallback if structure is weird (e.g. attachments only? shouldn't happen for text stream)
+                textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                lastBubble.appendChild(textDiv);
+            }
+
+            // Speed control: Fixed speed (no acceleration)
+            const batchSize = 1;
+
+            for (let i = 0; i < batchSize; i++) {
+                if (typeQueueIndex < typeQueue.length) {
+                    const char = typeQueue[typeQueueIndex++];
+                    const span = document.createElement('span');
+                    // Handle space preservation
+                    if (char === ' ') {
+                        span.innerHTML = '&nbsp;';
+                    } else {
+                        span.textContent = char;
+                    }
+                    span.className = 'protostar-char-fade';
+                    textDiv.appendChild(span);
+                }
+            }
+
+            scrollToBottom();
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
     };
 
     const renderSessionList = () => {
@@ -1094,6 +1262,9 @@
 
     // --- SSE Connection Logic ---
     const connectSSE = (sessionId) => {
+        // Prevent timer leak on reconnect
+        if (watchdogTimer) clearInterval(watchdogTimer);
+
         if (!sessionId) return;
         if (eventSource) eventSource.close();
 
@@ -1108,6 +1279,63 @@
 
         eventSource.onopen = () => {
             console.log('Protostar SSE Connected');
+            lastHeartbeatTime = Date.now();
+            lastTokenTime = Date.now();
+            startStreamWatchdog();
+        };
+
+        const startStreamWatchdog = () => {
+            if (watchdogTimer) clearInterval(watchdogTimer);
+            watchdogTimer = setInterval(() => {
+                const now = Date.now();
+                // 1. Heartbeat Check (60s)
+                if (now - lastHeartbeatTime > 60000) {
+                    handleStreamError("Connection lost (Heartbeat timeout)");
+                    return;
+                }
+                // 2. Token Stream Check (30s) - Only if sending/streaming
+                if (isSending && (now - lastTokenTime > 30000)) {
+                    handleStreamError("Stream hanging (Token timeout)");
+                    return;
+                }
+            }, 1000);
+        };
+
+        const handleStreamError = (reason) => {
+            console.warn("Protostar Stream Error:", reason);
+            if (eventSource) {
+                eventSource.close();
+                // eventSource = null; // Maybe keep instance or nullify? Logic uses it to check.
+            }
+            if (watchdogTimer) clearInterval(watchdogTimer);
+
+            isSending = false;
+
+            // UI Update
+            const sessions = getSessions();
+            const s = sessions.find(sess => sess.id === sessionId);
+            if (s) {
+                const lastMsg = s.messages[s.messages.length - 1];
+                const errorHtml = '<i>현재 서비스 상태가 좋지 않아 연결이 강제 종료 되었습니다. 관리자에게 문의 부탁드립니다.</i>';
+
+                if (lastMsg && lastMsg.type === 'bot') {
+                    // Replace content completely
+                    lastMsg.text = errorHtml;
+                    lastMsg.isError = true;
+                } else {
+                    s.messages.push({
+                        text: errorHtml,
+                        type: 'bot',
+                        timestamp: new Date().toISOString(),
+                        isError: true
+                    });
+                }
+                saveSessions(sessions);
+                if (activeSessionId === s.id) {
+                    renderChat();
+                }
+            }
+            updateSendButton();
         };
 
         eventSource.onmessage = (event) => {
@@ -1124,7 +1352,8 @@
                         return;
                     }
                     if (data.type === 'heartbeat') {
-                        // Ignore heartbeat
+                        // Ignore heartbeat but update time
+                        lastHeartbeatTime = Date.now();
                         return;
                     }
                     // If it is a token object (if backend changes), handle here?
@@ -1136,6 +1365,9 @@
 
                     if (data.type === 'message') {
                         const content = data.content;
+                        lastTokenTime = Date.now();
+                        lastHeartbeatTime = Date.now(); // Data implies connection alive
+
                         if (typeof content === 'string') {
                             const sessions = getSessions();
                             const s = sessions.find(sess => sess.id === sessionId);
@@ -1152,7 +1384,11 @@
                                 }
                                 s.last_updated = new Date().toISOString();
                                 saveSessions(sessions);
-                                if (activeSessionId === sessionId) renderChat();
+                                if (activeSessionId === sessionId) {
+                                    // Use spread for unicode support
+                                    typeQueue.push(...[...content]);
+                                    ensureTypingLoop();
+                                }
                             }
                         } else if (typeof content === 'object' && content !== null && content.type === 'done') {
                             // Handle wrapped DONE signal
@@ -1195,7 +1431,10 @@
                         }
                         s.last_updated = new Date().toISOString();
                         saveSessions(sessions);
-                        if (activeSessionId === sessionId) renderChat();
+                        if (activeSessionId === sessionId) {
+                            typeQueue.push(...[...data]);
+                            ensureTypingLoop();
+                        }
                     }
                 }
             } catch (e) {
@@ -1215,7 +1454,10 @@
                     }
                     s.last_updated = new Date().toISOString();
                     saveSessions(sessions);
-                    if (activeSessionId === sessionId) renderChat();
+                    if (activeSessionId === sessionId) {
+                        typeQueue.push(...[...event.data]);
+                        ensureTypingLoop();
+                    }
                 }
             }
         };
