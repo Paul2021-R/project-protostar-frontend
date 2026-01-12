@@ -615,6 +615,41 @@
          color: #bbb;
       }
     }
+    
+    /* Loading Dots Animation */
+    .protostar-loading-dots {
+      display: flex;
+      gap: 4px;
+      padding: 5px 0;
+      justify-content: center;
+      align-items: center;
+      min-width: 40px;
+    }
+    .protostar-dot {
+      width: 6px;
+      height: 6px;
+      background: #888;
+      border-radius: 50%;
+      animation: protostar-bounce 1.4s infinite ease-in-out both;
+    }
+    .protostar-dot:nth-child(1) { animation-delay: -0.32s; }
+    .protostar-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes protostar-bounce {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+    
+    @keyframes protostar-fade-in {
+      from { opacity: 0; transform: translateY(2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .protostar-char-fade {
+        animation: protostar-fade-in 0.3s ease-out forwards;
+        opacity: 0;
+        display: inline-block;
+    }
 
   `;
     document.head.appendChild(style);
@@ -708,6 +743,11 @@
     let activeSessionId = null;
     let attachments = [];
     let isSending = false; // Prevents double submission
+
+    // Typing Effect State
+    let typeQueue = [];
+    let isTypingLoopRunning = false;
+
 
     // --- Constants ---
     const MAX_SESSIONS_PER_DAY = 3;
@@ -889,7 +929,7 @@
             updateSendButton(); // Re-eval send button
         }
 
-        session.messages.forEach(msg => {
+        session.messages.forEach((msg, index) => {
             const bubble = document.createElement('div');
             bubble.className = `message-bubble ${msg.type}`;
 
@@ -899,12 +939,106 @@
                     html += `<div class="attachment-pill-in-chat">📄 ${escapeHtml(att.title)}</div>`;
                 });
             }
-            html += `<div>${escapeHtml(msg.text)}</div>`;
+
+            // Loading Animation Check: If it's a bot message, empty, and the LATEST message
+            if (msg.type === 'bot' && !msg.text && (index === session.messages.length - 1)) {
+                html += `
+                 <div class="protostar-loading-dots">
+                    <div class="protostar-dot"></div>
+                    <div class="protostar-dot"></div>
+                    <div class="protostar-dot"></div>
+                 </div>`;
+                bubble.classList.add('loading-bubble');
+            } else {
+                html += `<div class="message-text">${escapeHtml(msg.text)}</div>`;
+            }
 
             bubble.innerHTML = html;
             messageList.appendChild(bubble);
         });
         scrollToBottom();
+    };
+
+    const ensureTypingLoop = () => {
+        if (isTypingLoopRunning && typeQueue.length > 0) return; // Already running logic handles it, but check length to be sure? 
+        // Actually if isTypingLoopRunning is true, the RAF is active.
+        if (isTypingLoopRunning) return;
+
+        isTypingLoopRunning = true;
+        let lastTime = 0;
+        const RENDER_INTERVAL = 20; // 20ms throttle
+
+        const loop = (timestamp) => {
+            if (typeQueue.length === 0) {
+                isTypingLoopRunning = false;
+                return;
+            }
+
+            if (!lastTime) lastTime = timestamp;
+            const elapsed = timestamp - lastTime;
+
+            if (elapsed < RENDER_INTERVAL) {
+                requestAnimationFrame(loop);
+                return;
+            }
+
+            lastTime = timestamp;
+
+            const lastBubble = messageList.lastElementChild;
+            // Validations
+            if (!lastBubble || !lastBubble.classList.contains('bot')) {
+                // Should ideally not happen if flow is correct.
+                // If queue has items but no bubble, maybe dropped frame or race condition. 
+                // Wait for next cycle or just keep running? 
+                // If we return, we drop chars. Better to retry or stop.
+                // Let's stop to be safe.
+                isTypingLoopRunning = false;
+                return;
+            }
+
+            // Remove loading dots if present
+            const loadingDots = lastBubble.querySelector('.protostar-loading-dots');
+            if (loadingDots) {
+                loadingDots.remove();
+                lastBubble.classList.remove('loading-bubble');
+                // Ensure text container exists
+                if (!lastBubble.querySelector('.message-text')) {
+                    const textDiv = document.createElement('div');
+                    textDiv.className = 'message-text';
+                    lastBubble.appendChild(textDiv);
+                }
+            }
+
+            let textDiv = lastBubble.querySelector('.message-text');
+            if (!textDiv) {
+                // Fallback if structure is weird (e.g. attachments only? shouldn't happen for text stream)
+                textDiv = document.createElement('div');
+                textDiv.className = 'message-text';
+                lastBubble.appendChild(textDiv);
+            }
+
+            // Speed control: Fixed speed (no acceleration)
+            const batchSize = 1;
+
+            for (let i = 0; i < batchSize; i++) {
+                if (typeQueue.length > 0) {
+                    const char = typeQueue.shift();
+                    const span = document.createElement('span');
+                    // Handle space preservation
+                    if (char === ' ') {
+                        span.innerHTML = '&nbsp;';
+                    } else {
+                        span.textContent = char;
+                    }
+                    span.className = 'protostar-char-fade';
+                    textDiv.appendChild(span);
+                }
+            }
+
+            scrollToBottom();
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
     };
 
     const renderSessionList = () => {
@@ -1152,7 +1286,11 @@
                                 }
                                 s.last_updated = new Date().toISOString();
                                 saveSessions(sessions);
-                                if (activeSessionId === sessionId) renderChat();
+                                if (activeSessionId === sessionId) {
+                                    // Use spread for unicode support
+                                    typeQueue.push(...[...content]);
+                                    ensureTypingLoop();
+                                }
                             }
                         } else if (typeof content === 'object' && content !== null && content.type === 'done') {
                             // Handle wrapped DONE signal
@@ -1195,7 +1333,10 @@
                         }
                         s.last_updated = new Date().toISOString();
                         saveSessions(sessions);
-                        if (activeSessionId === sessionId) renderChat();
+                        if (activeSessionId === sessionId) {
+                            typeQueue.push(...[...data]);
+                            ensureTypingLoop();
+                        }
                     }
                 }
             } catch (e) {
@@ -1215,7 +1356,10 @@
                     }
                     s.last_updated = new Date().toISOString();
                     saveSessions(sessions);
-                    if (activeSessionId === sessionId) renderChat();
+                    if (activeSessionId === sessionId) {
+                        typeQueue.push(...[...event.data]);
+                        ensureTypingLoop();
+                    }
                 }
             }
         };
