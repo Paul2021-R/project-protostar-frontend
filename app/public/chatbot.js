@@ -617,9 +617,6 @@
       .attachment-pill .remove-btn {
          color: #bbb;
       }
-      .attachment-pill .remove-btn {
-         color: #bbb;
-      }
       .protostar-error-text {
         color: #ff8a80; /* Soft coral red for dark mode */
       }
@@ -918,6 +915,10 @@
 
     // --- Render ---
     const renderChat = () => {
+        // Reset typing state on re-render to prevent cross-session bleeding
+        typeQueue = [];
+        isTypingLoopRunning = false;
+
         messageList.innerHTML = '';
         const session = getActiveSession();
         if (!session) return; // Should not happen unless limit prevented creation
@@ -1001,16 +1002,20 @@
 
             lastTime = timestamp;
 
-            const lastBubble = messageList.lastElementChild;
+            let lastBubble = messageList.lastElementChild;
             // Validations
             if (!lastBubble || !lastBubble.classList.contains('bot')) {
-                // Should ideally not happen if flow is correct.
-                // If queue has items but no bubble, maybe dropped frame or race condition. 
-                // Wait for next cycle or just keep running? 
-                // If we return, we drop chars. Better to retry or stop.
-                // Let's stop to be safe.
-                isTypingLoopRunning = false;
-                return;
+                // If queue has items but no bubble, create one to prevent data loss
+                if (typeQueue.length > 0) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble bot';
+                    bubble.innerHTML = '<div class="message-text"></div>';
+                    messageList.appendChild(bubble);
+                    lastBubble = bubble;
+                } else {
+                    isTypingLoopRunning = false;
+                    return;
+                }
             }
 
             // Remove loading dots if present
