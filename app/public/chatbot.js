@@ -752,7 +752,9 @@
 
     // Typing Effect State
     let typeQueue = [];
+    let typeQueueIndex = 0;
     let isTypingLoopRunning = false;
+    let typingGeneration = 0;
 
 
     // --- Constants ---
@@ -916,7 +918,9 @@
     // --- Render ---
     const renderChat = () => {
         // Reset typing state on re-render to prevent cross-session bleeding
+        typingGeneration++;
         typeQueue = [];
+        typeQueueIndex = 0;
         isTypingLoopRunning = false;
 
         messageList.innerHTML = '';
@@ -978,17 +982,25 @@
     };
 
     const ensureTypingLoop = () => {
-        if (isTypingLoopRunning && typeQueue.length > 0) return; // Already running logic handles it, but check length to be sure? 
-        // Actually if isTypingLoopRunning is true, the RAF is active.
+        if (isTypingLoopRunning && (typeQueue.length - typeQueueIndex) > 0) return;
         if (isTypingLoopRunning) return;
 
         isTypingLoopRunning = true;
+        const myGeneration = typingGeneration;
         let lastTime = 0;
         const RENDER_INTERVAL = 20; // 20ms throttle
 
         const loop = (timestamp) => {
-            if (typeQueue.length === 0) {
+            // Generation Check: invalidates old loops
+            if (myGeneration !== typingGeneration) {
                 isTypingLoopRunning = false;
+                return;
+            }
+
+            if (typeQueueIndex >= typeQueue.length) {
+                isTypingLoopRunning = false;
+                typeQueue = []; // Cleanup
+                typeQueueIndex = 0;
                 return;
             }
 
@@ -1006,7 +1018,7 @@
             // Validations
             if (!lastBubble || !lastBubble.classList.contains('bot')) {
                 // If queue has items but no bubble, create one to prevent data loss
-                if (typeQueue.length > 0) {
+                if (typeQueueIndex < typeQueue.length) {
                     const bubble = document.createElement('div');
                     bubble.className = 'message-bubble bot';
                     bubble.innerHTML = '<div class="message-text"></div>';
@@ -1043,8 +1055,8 @@
             const batchSize = 1;
 
             for (let i = 0; i < batchSize; i++) {
-                if (typeQueue.length > 0) {
-                    const char = typeQueue.shift();
+                if (typeQueueIndex < typeQueue.length) {
+                    const char = typeQueue[typeQueueIndex++];
                     const span = document.createElement('span');
                     // Handle space preservation
                     if (char === ' ') {
