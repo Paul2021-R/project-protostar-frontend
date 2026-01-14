@@ -18,17 +18,29 @@ import {
 // I'll check if I installed label. I installed: button input card sheet sidebar avatar dropdown-menu textarea scroll-area separator badge.
 // Label is not in the list. I'll use standard label tag.
 
+import { authService } from '@/services/auth.service';
+
 export default function LoginPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate login
-    setTimeout(() => {
+    setError('');
+
+    try {
+      await authService.signin({ email, password });
       router.push('/dashboard');
-    }, 1000);
+    } catch (err) {
+      console.error(err);
+      setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -55,6 +67,8 @@ export default function LoginPage() {
                   placeholder="name@example.com"
                   type="email"
                   required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div className="flex flex-col space-y-1.5">
@@ -64,8 +78,19 @@ export default function LoginPage() {
                 >
                   Password
                 </label>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
+              {error && (
+                <div className="text-sm text-red-500 text-center">
+                  {error}
+                </div>
+              )}
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
