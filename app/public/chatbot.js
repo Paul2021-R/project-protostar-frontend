@@ -657,6 +657,11 @@
         display: inline-block;
     }
 
+    .message-text {
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
   `;
     document.head.appendChild(style);
 
@@ -758,8 +763,8 @@
 
 
     // --- Constants ---
-    const MAX_SESSIONS_PER_DAY = 3;
-    const MAX_MESSAGES_PER_SESSION = 10;
+    const MAX_SESSIONS_PER_DAY = 5;
+    const MAX_MESSAGES_PER_SESSION = 20;
     const EXPIRATION_DAYS = 7;
 
     // --- Helpers ---
@@ -1057,10 +1062,17 @@
             for (let i = 0; i < batchSize; i++) {
                 if (typeQueueIndex < typeQueue.length) {
                     const char = typeQueue[typeQueueIndex++];
+                    if (char === '\n') {
+                        textDiv.appendChild(document.createElement('br'));
+                        continue; // Skip span creation for newline
+                    }
+
                     const span = document.createElement('span');
                     // Handle space preservation
                     if (char === ' ') {
                         span.innerHTML = '&nbsp;';
+                    } else if (char === '\t') {
+                        span.innerHTML = '&emsp;';
                     } else {
                         span.textContent = char;
                     }
@@ -1278,7 +1290,7 @@
         eventSource = new EventSource(url);
 
         eventSource.onopen = () => {
-            console.log('Protostar SSE Connected');
+            console.log('Protostar SSE Connected', new Date().toISOString());
             lastHeartbeatTime = Date.now();
             lastTokenTime = Date.now();
             startStreamWatchdog();
@@ -1288,13 +1300,14 @@
             if (watchdogTimer) clearInterval(watchdogTimer);
             watchdogTimer = setInterval(() => {
                 const now = Date.now();
-                // 1. Heartbeat Check (60s)
-                if (now - lastHeartbeatTime > 60000) {
+                // 1. Heartbeat Check (120s) - Relaxed from 60s
+                if (now - lastHeartbeatTime > 120000) {
                     handleStreamError("Connection lost (Heartbeat timeout)");
                     return;
                 }
-                // 2. Token Stream Check (30s) - Only if sending/streaming
-                if (isSending && (now - lastTokenTime > 30000)) {
+                // 2. Token Stream Check (120s) - Relaxed from 30s
+                // Only if sending/streaming
+                if (isSending && (now - lastTokenTime > 120000)) {
                     handleStreamError("Stream hanging (Token timeout)");
                     return;
                 }
@@ -1302,7 +1315,7 @@
         };
 
         const handleStreamError = (reason) => {
-            console.warn("Protostar Stream Error:", reason);
+            console.warn("Protostar Stream Error:", reason, new Date().toISOString());
             if (eventSource) {
                 eventSource.close();
                 // eventSource = null; // Maybe keep instance or nullify? Logic uses it to check.
@@ -1386,7 +1399,12 @@
                                 saveSessions(sessions);
                                 if (activeSessionId === sessionId) {
                                     // Use spread for unicode support
-                                    typeQueue.push(...[...content]);
+                                    if (window.Intl && Intl.Segmenter) {
+                                        const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+                                        typeQueue.push(...Array.from(segmenter.segment(content)).map(s => s.segment));
+                                    } else {
+                                        typeQueue.push(...[...content]);
+                                    }
                                     ensureTypingLoop();
                                 }
                             }
@@ -1432,7 +1450,12 @@
                         s.last_updated = new Date().toISOString();
                         saveSessions(sessions);
                         if (activeSessionId === sessionId) {
-                            typeQueue.push(...[...data]);
+                            if (window.Intl && Intl.Segmenter) {
+                                const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+                                typeQueue.push(...Array.from(segmenter.segment(data)).map(s => s.segment));
+                            } else {
+                                typeQueue.push(...[...data]);
+                            }
                             ensureTypingLoop();
                         }
                     }
@@ -1455,7 +1478,12 @@
                     s.last_updated = new Date().toISOString();
                     saveSessions(sessions);
                     if (activeSessionId === sessionId) {
-                        typeQueue.push(...[...event.data]);
+                        if (window.Intl && Intl.Segmenter) {
+                            const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+                            typeQueue.push(...Array.from(segmenter.segment(event.data)).map(s => s.segment));
+                        } else {
+                            typeQueue.push(...[...event.data]);
+                        }
                         ensureTypingLoop();
                     }
                 }
@@ -1470,7 +1498,9 @@
         });
 
         eventSource.onerror = (err) => {
-            // console.error('SSE Error', err);
+            console.error('SSE Error:', err);
+            // Connection state inspection
+            console.log('SSE ReadyState:', eventSource.readyState);
         };
     };
 
