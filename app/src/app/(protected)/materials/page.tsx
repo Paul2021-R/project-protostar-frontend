@@ -77,6 +77,9 @@ export default function MaterialsPage() {
       setUploading(true);
       await knowledgeService.uploadDocs(selectedFiles);
       setSelectedFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       await fetchDocs();
     } catch (err) {
       console.error(err);
@@ -189,8 +192,8 @@ export default function MaterialsPage() {
                       <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
                       <span>{(doc.size / 1024).toFixed(1)} KB</span>
                       <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${doc.status === 'COMPLETED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                          doc.status === 'FAILED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        doc.status === 'FAILED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                         }`}>
                         {doc.status}
                       </span>

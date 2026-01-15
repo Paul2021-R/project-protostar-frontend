@@ -24,11 +24,7 @@ export const knowledgeService = {
       formData.append('files', file);
     });
 
-    const response = await api.post<{ uploadedData: KnowledgeDoc[] }>('/api/v1/upload/knowledge-docs', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post<{ uploadedData: KnowledgeDoc[] }>('/api/v1/upload/knowledge-docs', formData);
     return response.data.uploadedData || [];
   },
 

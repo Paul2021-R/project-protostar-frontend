@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
-    ? 'https://back-protostar.ddns.net/'
+    ? 'https://back-protostar.ddns.net'
     : 'http://localhost:5859');
 
 export const api = axios.create({
