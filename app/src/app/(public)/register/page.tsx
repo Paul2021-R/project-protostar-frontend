@@ -34,9 +34,25 @@ export default function RegisterPage() {
           <CardTitle>Register</CardTitle>
           <CardDescription>Create an account to get started.</CardDescription>
         </CardHeader>
-        <form onSubmit={handleRegister}>
+        <div className="flex flex-col gap-4">
           <CardContent>
-            <div className="grid w-full items-center gap-4">
+            <div className="rounded-md bg-yellow-50 p-4">
+              <div className="flex">
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    Beta Testing Period
+                  </h3>
+                  <div className="mt-2 text-sm text-yellow-700">
+                    <p>
+                      현재는 베타 테스트 기간으로 회원가입이 제한됩니다.
+                      <br />
+                      관리자에게 문의해주세요.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid w-full items-center gap-4 mt-4 opacity-50 pointer-events-none select-none">
               <div className="flex flex-col space-y-1.5">
                 <label
                   htmlFor="name"
@@ -44,7 +60,7 @@ export default function RegisterPage() {
                 >
                   Name
                 </label>
-                <Input id="name" placeholder="John Doe" required />
+                <Input id="name" placeholder="John Doe" disabled />
               </div>
               <div className="flex flex-col space-y-1.5">
                 <label
@@ -57,7 +73,7 @@ export default function RegisterPage() {
                   id="email"
                   placeholder="name@example.com"
                   type="email"
-                  required
+                  disabled
                 />
               </div>
               <div className="flex flex-col space-y-1.5">
@@ -67,13 +83,13 @@ export default function RegisterPage() {
                 >
                   Password
                 </label>
-                <Input id="password" type="password" required />
+                <Input id="password" type="password" disabled />
               </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
-            <Button className="w-full" type="submit" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Register'}
+            <Button className="w-full" disabled>
+              Register
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               Already have an account?{' '}
@@ -82,7 +98,7 @@ export default function RegisterPage() {
               </Link>
             </p>
           </CardFooter>
-        </form>
+        </div>
       </Card>
     </div>
   );
