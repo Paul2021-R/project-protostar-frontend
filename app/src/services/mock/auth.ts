@@ -13,7 +13,7 @@ export const mockAuthService = {
     await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate delay
     return {
       user: MOCK_USER,
-      token: 'mock-jwt-token',
+      accessToken: 'mock-jwt-token',
     };
   },
 
