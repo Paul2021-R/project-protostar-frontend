@@ -87,9 +87,7 @@ export default function LoginPage() {
                 />
               </div>
               {error && (
-                <div className="text-sm text-red-500 text-center">
-                  {error}
-                </div>
+                <div className="text-sm text-red-500 text-center">{error}</div>
               )}
             </div>
           </CardContent>

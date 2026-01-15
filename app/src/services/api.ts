@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === 'production'
     ? 'https://back-protostar.ddns.net'
     : 'http://localhost:5859');
@@ -13,7 +14,8 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config: any) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

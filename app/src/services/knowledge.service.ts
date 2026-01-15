@@ -14,7 +14,9 @@ export interface KnowledgeDoc {
 
 export const knowledgeService = {
   async getDocs(): Promise<KnowledgeDoc[]> {
-    const response = await api.get<{ uploadedData: KnowledgeDoc[], meta: any }>('/api/v1/upload/knowledge-docs');
+    const response = await api.get<{ uploadedData: KnowledgeDoc[]; meta: any }>(
+      '/api/v1/upload/knowledge-docs',
+    );
     return response.data.uploadedData || [];
   },
 
@@ -24,7 +26,10 @@ export const knowledgeService = {
       formData.append('files', file);
     });
 
-    const response = await api.post<{ uploadedData: KnowledgeDoc[] }>('/api/v1/upload/knowledge-docs', formData);
+    const response = await api.post<{ uploadedData: KnowledgeDoc[] }>(
+      '/api/v1/upload/knowledge-docs',
+      formData,
+    );
     return response.data.uploadedData || [];
   },
 

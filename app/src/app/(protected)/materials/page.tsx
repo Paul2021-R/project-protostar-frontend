@@ -108,7 +108,9 @@ export default function MaterialsPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Knowledge Materials</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">
+          Knowledge Materials
+        </h1>
         <p className="text-muted-foreground">
           AI 학습을 위한 Markdown 문서를 업로드하고 관리하세요.
         </p>
@@ -123,8 +125,11 @@ export default function MaterialsPage() {
 
       {/* Upload Area */}
       <Card
-        className={`p-10 border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-4 ${uploading ? 'opacity-50 pointer-events-none' : 'hover:bg-accent/50 hover:border-accent-foreground/50'
-          }`}
+        className={`p-10 border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-4 ${
+          uploading
+            ? 'opacity-50 pointer-events-none'
+            : 'hover:bg-accent/50 hover:border-accent-foreground/50'
+        }`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onClick={openFileDialog}
@@ -153,7 +158,10 @@ export default function MaterialsPage() {
         {selectedFiles.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2 justify-center max-w-lg">
             {selectedFiles.map((f, i) => (
-              <span key={i} className="text-xs bg-secondary px-2 py-1 rounded-md text-secondary-foreground">
+              <span
+                key={i}
+                className="text-xs bg-secondary px-2 py-1 rounded-md text-secondary-foreground"
+              >
                 {f.name}
               </span>
             ))}
@@ -163,7 +171,13 @@ export default function MaterialsPage() {
 
       {selectedFiles.length > 0 && (
         <div className="flex justify-end">
-          <Button onClick={(e) => { e.stopPropagation(); handleUpload(); }} disabled={uploading}>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUpload();
+            }}
+            disabled={uploading}
+          >
             {uploading ? 'Uploading...' : '이력 데이터 업로드'}
           </Button>
         </div>
@@ -171,9 +185,13 @@ export default function MaterialsPage() {
 
       {/* File List */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Uploaded Documents ({docs.length}/10)</h2>
+        <h2 className="text-xl font-semibold">
+          Uploaded Documents ({docs.length}/10)
+        </h2>
         {isLoading ? (
-          <div className="text-center py-10 text-muted-foreground">Loading...</div>
+          <div className="text-center py-10 text-muted-foreground">
+            Loading...
+          </div>
         ) : docs.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground bg-muted/30 rounded-lg">
             등록된 문서가 없습니다.
@@ -181,20 +199,32 @@ export default function MaterialsPage() {
         ) : (
           <div className="grid gap-4">
             {docs.map((doc) => (
-              <Card key={doc.id} className="p-4 flex items-center justify-between hover:shadow-md transition-shadow">
+              <Card
+                key={doc.id}
+                className="p-4 flex items-center justify-between hover:shadow-md transition-shadow"
+              >
                 <div className="flex items-center gap-4">
                   <div className="p-2 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-medium truncate max-w-[300px]">{doc.title}</h4>
+                    <h4 className="font-medium truncate max-w-[300px]">
+                      {doc.title}
+                    </h4>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                      <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+                      <span>
+                        {new Date(doc.createdAt).toLocaleDateString()}
+                      </span>
                       <span>{(doc.size / 1024).toFixed(1)} KB</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${doc.status === 'COMPLETED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        doc.status === 'FAILED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                          'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                        }`}>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${
+                          doc.status === 'COMPLETED'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : doc.status === 'FAILED'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        }`}
+                      >
                         {doc.status}
                       </span>
                     </div>
