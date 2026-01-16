@@ -29,6 +29,11 @@ export const knowledgeService = {
     const response = await api.post<{ uploadedData: KnowledgeDoc[] }>(
       '/api/v1/upload/knowledge-docs',
       formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     );
     return response.data.uploadedData || [];
   },

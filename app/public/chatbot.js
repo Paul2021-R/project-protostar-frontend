@@ -763,7 +763,7 @@
 
 
     // --- Constants ---
-    const MAX_SESSIONS_PER_DAY = 5;
+    const MAX_SESSIONS_PER_DAY = 100;
     const MAX_MESSAGES_PER_SESSION = 20;
     const EXPIRATION_DAYS = 7;
 
