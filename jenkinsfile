@@ -24,7 +24,7 @@ pipeline {
         TARGET_INFRA_PATH = '/home/hansol/workspace/project-protostar-server-configs/main-server'
 
         // Frontend Environment Variables
-        NEXT_PUBLIC_API_URL = 'https://service-protostar.ddns.net'
+        NEXT_PUBLIC_API_URL = 'https://back-protostar.ddns.net'
     }
 
     parameters {
