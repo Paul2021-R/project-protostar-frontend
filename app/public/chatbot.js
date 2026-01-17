@@ -763,8 +763,8 @@
 
 
     // --- Constants ---
-    const MAX_SESSIONS_PER_DAY = 100;
-    const MAX_MESSAGES_PER_SESSION = 20;
+    const MAX_SESSIONS_PER_DAY = 5;
+    const MAX_MESSAGES_PER_SESSION = 15;
     const EXPIRATION_DAYS = 7;
 
     // --- Helpers ---
@@ -1544,6 +1544,12 @@
             timestamp: new Date().toISOString(),
             type: 'user'
         };
+
+        // --- Connection Check & Restoration ---
+        if (!eventSource || eventSource.readyState === 2) {
+            console.log('Protostar: Connection lost, reconnecting...');
+            connectSSE(activeSessionId);
+        }
 
         isSending = true; // Set block flag
         updateSendButton();
