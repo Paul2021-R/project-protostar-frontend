@@ -6,7 +6,6 @@ metadata:
   labels:
     app: protostar
     tier: frontend
-    env: dev
 spec:
   replicas: 1
   selector: 
@@ -18,10 +17,7 @@ spec:
       labels:
         app: protostar
         tier: frontend
-        env: dev
     spec:
-      # nodeSelector:
-      # kubernetes.io/hostname: A5
       imagePullSecrets:
         - name: ghcr-secret
       containers:
@@ -29,6 +25,3 @@ spec:
           image: ghcr.io/paul2021-r/project-protostar-frontend:75
           ports: 
             - containerPort: 3000
-          env:
-            - name: NODE_ENV
-              value: "production"
