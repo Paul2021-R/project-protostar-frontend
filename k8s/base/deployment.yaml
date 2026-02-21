@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: protostar-frontend
+  namespace: service
+  labels:
+    app: protostar
+    tier: frontend
+spec:
+  replicas: 1
+  selector: 
+    matchLabels:
+      app: protostar
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: protostar
+        tier: frontend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: frontend
+          image: ghcr.io/paul2021-r/project-protostar-frontend:75
+          ports: 
+            - containerPort: 3000
