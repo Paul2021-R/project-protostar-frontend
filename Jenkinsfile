@@ -109,22 +109,26 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            script {
-                withCredentials([string(credentialsId: DISCORD_CREDS_ID, variable: 'DISCORD_URL')]) {
-                    def message = "{\"content\": \"🚀 Build succeeded : **[${env.JOB_NAME}]** - **#${env.BUILD_NUMBER}**\"}"
-                    sh "curl -X POST -H 'Content-Type: application/json' --data '${message}' ${DISCORD_URL}"
-                }
-            }
-        }
-        failure {
-            script {
-                withCredentials([string(credentialsId: DISCORD_CREDS_ID, variable: 'DISCORD_URL')]) {
-                    def message = "{\"content\": \"🔥 Build failed at ${failureStage} : **[${env.JOB_NAME}]** - **#${env.BUILD_NUMBER}** ${env.BUILD_URL}\"}"
-                    sh "curl -X POST -H 'Content-Type: application/json' --data '${message}' ${DISCORD_URL}"
-                }
-            }
-        }
-    }
+  post {
+      success {
+          node('built-in') {
+              script {
+                  withCredentials([string(credentialsId: DISCORD_CREDS_ID, variable: 'DISCORD_URL')]) {
+                      def message = "{\"content\": \"🚀 Build succeeded : **[${env.JOB_NAME}]** - **#${env.BUILD_NUMBER}**\"}"
+                      sh "curl -X POST -H 'Content-Type: application/json' --data '${message}' ${DISCORD_URL}"
+                  }
+              }
+          }
+      }
+      failure {
+          node('built-in') {
+              script {
+                  withCredentials([string(credentialsId: DISCORD_CREDS_ID, variable: 'DISCORD_URL')]) {
+                      def message = "{\"content\": \"🔥 Build failed at ${failureStage} : **[${env.JOB_NAME}]** - **#${env.BUILD_NUMBER}** ${env.BUILD_URL}\"}"
+                      sh "curl -X POST -H 'Content-Type: application/json' --data '${message}' ${DISCORD_URL}"
+                  }
+              }
+          }
+      }
+  }
 }
