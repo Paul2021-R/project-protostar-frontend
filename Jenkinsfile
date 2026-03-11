@@ -65,8 +65,8 @@ pipeline {
                         container('kaniko') {
                             sh """
                                 /kaniko/executor \
-                                --context=dir:///home/jenkins/agent/workspace/protostar-frontend/app \
-                                --dockerfile=/home/jenkins/agent/workspace/protostar-frontend/app/Dockerfile \
+                                --context=dir:///workspace/workspace/protostar-frontend/app \
+                                --dockerfile=/workspace/workspace/protostar-frontend/app/Dockerfile \
                                 --destination=${IMAGE_NAME}:${BUILD_NUMBER} \
                                 --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
                                 --cache=true
