@@ -61,6 +61,7 @@ pipeline {
             steps {
                 script {
                     try {
+                        checkout scm
                         container('kaniko') {
                             sh """
                                 /kaniko/executor \
